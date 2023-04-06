@@ -1,0 +1,8 @@
+UGEGreed Protocol - UGP/1.0
+
+1. Introduction
+2. Terminology
+3. Description
+4. Connection
+
+Anonymous Killer        Information             [Page 1]
