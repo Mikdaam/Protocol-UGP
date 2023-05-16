@@ -1,16 +1,18 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.base;
+
+import fr.networks.ugp.readers.Reader;
 
 import java.nio.ByteBuffer;
 
-public class IntReader implements Reader<Integer> {
+public class ByteReader implements Reader<Byte> {
 
     private enum State {
         DONE, WAITING, ERROR
     }
 
     private State state = State.WAITING;
-    private final ByteBuffer internalBuffer = ByteBuffer.allocate(Integer.BYTES); // write-mode
-    private int value;
+    private final ByteBuffer internalBuffer = ByteBuffer.allocate(Byte.BYTES); // write-mode
+    private byte value;
 
     @Override
     public ProcessStatus process(ByteBuffer buffer) {
@@ -35,12 +37,12 @@ public class IntReader implements Reader<Integer> {
         }
         state = State.DONE;
         internalBuffer.flip();
-        value = internalBuffer.getInt();
+        value = internalBuffer.get();
         return ProcessStatus.DONE;
     }
 
     @Override
-    public Integer get() {
+    public Byte get() {
         if (state != State.DONE) {
             throw new IllegalStateException();
         }

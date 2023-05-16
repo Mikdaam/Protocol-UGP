@@ -1,4 +1,6 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.base;
+
+import fr.networks.ugp.readers.Reader;
 
 import java.nio.ByteBuffer;
 

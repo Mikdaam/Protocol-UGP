@@ -1,5 +1,6 @@
 package fr.networks.ugp.readers;
 
+import fr.networks.ugp.readers.base.StringReader;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;

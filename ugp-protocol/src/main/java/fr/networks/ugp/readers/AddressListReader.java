@@ -1,5 +1,7 @@
 package fr.networks.ugp.readers;
 
+import fr.networks.ugp.readers.base.IntReader;
+
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

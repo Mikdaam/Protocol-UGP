@@ -1,5 +1,7 @@
 package fr.networks.ugp.readers;
 
+import fr.networks.ugp.readers.base.ByteReader;
+
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;

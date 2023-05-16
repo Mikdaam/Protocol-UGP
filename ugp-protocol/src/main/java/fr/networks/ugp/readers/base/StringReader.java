@@ -1,4 +1,7 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.base;
+
+import fr.networks.ugp.readers.Reader;
+import fr.networks.ugp.readers.base.IntReader;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
