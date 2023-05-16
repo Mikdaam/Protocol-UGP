@@ -1,0 +1,407 @@
+Ce document décrit le protocole UGEGreed. Le protocole permet à des applications de se connecter à une machine d'un réseau et de répartir des tâches de calculs sur les différentes applications du réseau. 
+
+Le protocole permet à une application de se connecter au réseau, d'avoir accès à l'identité de toutes les machines du réseau, d'envoyer des données à une machine du réseau ou à toutes les machines du réseau et à une machine de se déconnecter du réseau. Il fournit de plus un mécanisme pour proposer, accepter et renvoyer le résultat de tâches de calculs aux différentes applications du réseau.
+
+
+La présentation du protocole est structurée comme suit:
+La partie 1 présente les conventions générales sur la représentation des données;
+La partie 2 présente la terminologie et le fonctionnement général du protocole;
+La partie 3 présente le routage des trames dans le réseau;
+La partie 4 présente la connexion au réseau;
+La partie 5 présente les trames liées à la répartition des calculs;
+La partie 6 présente la déconnexion du réseau.
+
+
+
+1) Représentation des données :
+   ============================
+
+Les entiers (INT) sur 4 octets signés et les longs (LONG) sur 8 octets signés sont tous transmis en BigEndian. Les octets signés seront désignés par (BYTE) et les suites d'octets par (BYTES)
+
+Les chaînes de caractères (STRING) sont encodées en UTF-8 et précédées de la taille de leur représentation en octets sur un INT.
+
+    STRING = taille (INT) chaîne encodée en UTF-8
+
+Une adresse IP (IPADDRESS) est représentée par un octet valant 4 ou 6 selon que l'adresse est au format IPv4 ou IPv6 suivi des 4 octets ou 16 octets de l'adresse selon qu'elle est IPv4 ou IPv6.
+
+Une adresse de socket (SOCKETADDRESS) contenant une adresse IP et un numéro de port est représentée un IPADDRESS suivi d'un INT valant entre 0 et 65 535.
+
+   SOCKETADDRESS = adresse IP (IPADDRESS) + numéro de port entre 0 et 65 535 (INT)
+
+Les urls http (HTTP-URL) référencent des STRING qui suivent la RFC 4248 pour les URLs pour le schéma HTTP.
+
+Les identifiants (ID) seront simplement des (SOCKETADDRESS)
+
+Les listes d'identifiants (LIST_ID) seront envoyées au format suivant un INT donnant le nombre d'identifiants dans la liste suivi des identifiants de la liste au format (ID)
+
+2) Terminologie et principe de fonctionnement général
+   ==================================================    
+
+Toutes les applications qui utilisent le protocole UGEGreed-Transport doivent être en mesure d'accepter des connexions 
+TCP sur un port. La SOCKETADDRESS de cette socket sera l'identifiant (ID) unique de l'application pour ce protocole.
+
+Une application peut être démarrée en mode CONNECTED ou en mode ROOT. Si l'application est démarrée en mode CONNECTED, elle commence par se connecter à une autre application (cf. Section 4) qui s'appellera sa mère. Elle pourra ensuite accepter des connexions d'autres applications (cf. Section 4) qui seront appelées ses filles. Si elle est démarrée en mode ROOT, elle ne se connecte pas initialement à une autre application, mais elle pourra accepter des connexions.
+
+
+
+Par réseau, on désignera une application ROOT, ses applications filles, les applications filles de ses filles, ... Un réseau a donc une forme d'arbre dont la racine est l'application ROOT.
+
+Le réseau va pouvoir évoluer au fil du temps avec l'arrivée de nouvelles applications et le départ de certaines applications (non-ROOT). 
+
+Par exemple, si  A est démarré en mode ROOT, que B et C se connectent à A, que D et E se connecte à B. On obtient l'arbre du réseau suivant.
+
+          A(ROOT)
+          |
+     +----+----+
+     |         |
+     B         C
+     |         
+  +--+--+
+  |     |
+  D     E
+
+Chaque application va maintenir à tout instant, une table de routage qui indique pour chaque application du réseau laquelle de ses voisines est la plus proche de cette application (la notion de distance est simplement la longueur du plus court chemin dans l'arbre). 
+
+Par exemple pour A, la table de routage sera:
+C -> C
+B -> B
+D -> B
+E -> B
+
+Pour l'application B, la table de routage sera:
+A -> A
+C -> A
+D -> D
+E -> E
+
+Quand une application voudra envoyer un message à une autre application du réseau, il lui suffira de regarder dans sa table de routage à quelle voisine transmettre le message. En recevant ce message, la voisine verra de même et ainsi de suite jusqu'à ce que le message atteigne sa destination.
+
+3) Gestion de la partie routage des trames
+   =======================================
+
+Les trames qui vont être échangées sur le réseau seront de 3 types LOCAL, TRANSFERT et BROADCAST.
+
+Les trames LOCAL seront échangées entre applications voisines dans le réseau. Les trames TRANSFERT vont être transférées d'une application source à une application destination par les différentes applications se trouvant sur le chemin (de longueur minimale) entre l'application source et l'application destination. Les trames BROADCAST vont être transférées à toutes les applications du réseau à partir d'une application source.
+
+
+Toutes les trames du protocole UGEGreed commencent par un octet signé appelé octet de routage qui peut valoir 0 (LOCAL), 1 (TRANSFERT) ou 2 (BROADCAST). Elles suivent l'un des trois formats généraux suivants:
+
+LOCAL: 0 (BYTE) opcode (BYTE) payload (BYTES)
+
+TRANSFERT: 1 (BYTE) opcode (BYTE) id_src (ID) id_dst (ID) payload (BYTES) 
+
+BROADCAST: 2 (BYTE) opcode (BYTE) id_src (ID) payload (BYTES)
+
+TO_ROOT: 3 (BYTE) opcode (BYTE) id_src (ID) payload (BYTES)
+
+Dans tous les cas, opcode est un octet signé qui indique le type de la commande.
+
+Nous allons commencer par présenter comment le protocole gère les différents types de trames et cela indépendamment de leur opcode, juste en basant sur leur octet de routage.
+
+3.1) Trame LOCAL
+     -----------
+
+Il n'y a aucun comportement particulier pour les trames LOCAL.
+
+3.2) Trame TRANSFERT
+     ---------------
+
+Lorsqu'une application reçoit une trame TRANSFERT:
+
+1 (BYTE) opcode (BYTE) id_src (ID) id_dst (ID) payload (BYTES) 
+
+si son identifiant n'est pas id_dst (auquel cas, elle n'a rien à faire à part traiter la trame), elle transmet la trame à l'identique à l'application voisine indiquée par sa table de routage pour l'identifiant id_dst.
+
+Si l'identifiant id_dst n'est pas présent dans la table de routage, la trame est ignorée.
+
+
+3.3) Trame BROADCAST
+     ---------------
+
+Lorsqu'une application reçoit une trame BROADCAST:
+
+BROADCAST: 2 (BYTE) opcode (BYTE) id_src (ID) payload (BYTES)
+
+elle transmet à l'identique la trame à toutes ses voisines à l'exception de la voisine qui est à l'origine de la trame.
+
+3.4) Trame TO_ROOT
+     ---------------
+
+Lorsqu'une application CONNECTED reçoit une trame BROADCAST:
+
+TO_ROOT: 3 (BYTE) opcode (BYTE) id_src (ID) payload (BYTES)
+
+elle transmet à l'identique la trame à l'application à laquelle elle s'est connectée initialement.
+
+4) Initialisation et connexion au réseau 
+   ======================================
+
+Lorsqu'une application est démarrée en mode ROOT. Sa table de routage est initialement vide. Nous allons présenter la connexion d'une application DAUGHTER à
+une application MOTHER. La connexion est initiée par DAUGHTER en se connectant sur le port d'écoute de MOTHER.
+
+4.a) Gestion de la connexion côté DAUGHTER
+     -------------------------------------
+L'application DAUGHTER démarrée en mode CONNECTED se connecte à une application MOTHER, elle envoie la trame LOCAL suivante d'opcode 1:
+
+CONNECT =  LOCAL(0) (BYTE) 1 (BYTE) id (ID)
+où id est son identifiant
+
+Si l'application MOTHER refuse la connexion (en particulier si elle est en train de se déconnecter), elle va répondre avec la trame:
+
+CONNECT_KO = LOCAL(0) (BYTE) 2 
+
+Dans ce cas, l'application a échoué à se connecter au réseau.
+
+Si l'application MOTHER accepte la connexion, elle va répondre avec la trame:
+
+CONNECT_OK = LOCAL(0) (BYTE) 3 (BYTE) id_mother (ID) ids (LIST_ID)
+où:
+- id_mother est l'identifiant de l'application MOTHER 
+- la liste des identifiants de toutes les applications présente dans la table de routage de MOTHER 
+
+L'application va pouvoir construire sa table de routage, en associant id_mother à tous les identifiants qu'elle a reçus et en associant id_mother à id_mother.
+
+Une fois la trame CONNECT_OK reçue et la table de routage mise à jour, l'application peut accepter des connexions sur son port d'écoute.
+
+
+4.b) Gestion de la connexion côté MOTHER
+     -----------------------------------
+
+Si une application accepte une connexion sur son port d'écoute, elle attend une trame CONNECT ou RECONNECT (voir Section TODO) à l'exception de toutes autres trames.
+
+Si elle reçoit une trame d'une application DAUGHTER
+
+CONNECT =  LOCAL(0) (BYTE) 1 (BYTE) id_daughter (ID)
+où id_daughter est l'identifiant de l'application DAUGHTER
+
+Si l'application refuse la connexion (en particulier si elle est en train de se déconnecter), elle va répondre avec la trame:
+
+CONNECT_KO = LOCAL(0) (BYTE) 2 
+
+Si l'application MOTHER accepte la connexion, elle va répondre avec la trame:
+
+CONNECT_OK = LOCAL(0) (BYTE) 3 (BYTE) id (ID) ids (LIST_ID)
+où:
+- id est l'identifiant de l'application 
+- la liste des identifiants présents dans la table de routage
+
+Ensuite, elle ajoutera l'association id_daughter -> id_daughter dans sa table de routage et elle associe l'id_daughter à la connexion TCP sur laquelle elle a reçu
+cette trame.
+
+Elle va ensuite envoyer une trame BROADCAST à toutes ses voisines (excepté DAUGHTER):
+
+ADD_NODE = BROADCAST (1) (BYTE) 4 (BYTE) id (ID) id_daughter 
+
+
+4.c) Gestion de la mise à jour des tables de routages:
+     -------------------------------------------------
+
+Lorsqu'une application reçoit une trame d'une de ses voisines d'identifiant id_src:
+
+ADD_NODE = BROADCAST (1) (BYTE) 4 (BYTE) id (ID) id_daughter
+
+Elle va rajouter dans sa table de routage l'association id_daughter -> id_src.
+Elle va aussi broadcaster la trame conformément à la Section 3. 
+
+5) Répartition des tâches
+   ======================
+
+Le protocole UGEGreed n'impose pas d'algorithme particulier pour la répartition des tâches de calcul. Il offre simplement un mécanisme par lequel une application peut demander à une autre combien d'unités de calcul, elle peut réaliser pour elle. Elle permet d'affecter des unités de calcul à une application et à une application de renvoyer des réponses pour des unités de calcul effectuées qui lui ont été affectées. Les différentes applications implémentant le protocole UGEGreed peuvent choisir librement l'algorithme qu'elles utilisent pour répartir les UCs dans le réseau. 
+
+5.1) Description des tâches:
+     -----------------------
+
+Un checker (CHECKER) est décrit par l'url d'un jar contenant une classe implémentant l'interface fr.uge.ugegreed.Checker se trouvant à l'adresse "igm.univ-mlv.fr/coursprogreseau/tds/projet2023/Checker.java" ainsi que le nom fully-qualified de cette classe:
+
+CHECKER = url (HTTP-URL) fully-qualifier-name (CLASS)
+
+Un calcul est un couple formé d'une valeur à tester (LONG) et d'un checker.
+
+Nous allons manipuler des plages de valeurs à tester (RANGE) qui seront composées de deux valeurs (LONG) avec la première inférieure (au sens large) à la seconde. Les bornes sont incluses dans la plage de valeur.
+
+RANGE = inf (LONG) sup (LONG)
+
+Une liste de RANGE (LIST_RANGES) sera envoyée avec un INT donnant la taille de la liste suivie des plages de la liste.
+
+5.2) Négociation de l'assignation des calculs
+     ----------------------------------------
+
+Une application SRC (d'identifiant id_src) peut proposer des calculs sur une même checker à une application DST (d'identifiant id_dst), en envoyant une trame (cf. Section 3):
+
+WORK_REQUEST = TRANSFERT(1) (BYTE) 5 (BYTE) id_src (ID) id_dst (ID) request_id (LONG) checker (CHECKER) total_range (RANGE) nb_uc (LONG)
+où:
+- id_src est l'identifiant de l'application ID_SRC;
+- id_dst est l'identifiant de l'application ID_DST;
+- request_id est un identifiant de requête qui doit être unique pour cette application et qui sera utilisé dans la réponse ainsi que dans l'assignation;
+- checker est le checker utilisé pour cette tâche;
+- total_range est la plage totale des valeurs qui seront testées;
+- nb_uc_max est le nombre de valeurs maximum que SRC propose à DST de traiter.
+
+Quand l'application DST reçoit cette trame, elle répond en envoyant:
+
+WORK_RESPONSE = TRANSFERT(1) (BYTE) 5 (BYTE)  id_dst (ID) id_src (ID) request_id (LONG) nb_uc (LONG)
+où:
+- id_src est l'identifiant de l'application ID_SRC;
+- id_dst est l'identifiant de l'application ID_DST;
+- request_id est un identifiant de requête se trouvant dans la trame WORK_REQUEST;
+- nb_uc (LONG) est le nombre de calculs. Ce nombre doit être compris entre 0 et nb_uc_max. Il peut valoir 0 pour signifier que cette application ne peut pas faire de calculs pour l'instant. 
+
+
+Après avoir reçu cette réponse, l'application SRC peut assigner des calculs à l'application DST avec la trame suivante:
+
+WORK_ASSIGNEMENT = TRANSFERT(1) (BYTE) 6 (BYTE) id_src (ID) id_dst (ID) request_id (LONG) id_dst (ID) id_src (ID) ranges (LIST_RANGES)
+- id_src est l'identifiant de l'application ID_SRC;
+- id_dst est l'identifiant de l'application ID_DST;
+- request_id est l'identifiant de la requête correspondant à la WORK_RESPONSE
+
+Quand l'application DST reçoit cette trame, elle doit effectuer les calculs correspondants sur le checker et renvoyer les réponses comme indiqué dans la section 5.4. 
+
+
+5.4) Réponses des calculs:
+     ---------------------
+
+Une réponse à un calcul sera composée de la valeur testée LONG, d'un octet signé (BYTE) valant indiquant si la réponse à pu être calculée et si le calcul a pu être effectué la chaîne (STRING) renvoyée par le checker.
+
+RESPONSE =   value (LONG) 0 (BYTE) response (STRING)
+             | value (LONG) 1 (BYTE) // checker a levé une exception
+             | value (LONG) 2 (BYTE) // checker a dépassé le temps alloué
+             | value (LONG) 3 (BYTE) // le checker n'a pas pu être récupéré
+
+Pour renvoyer la réponse à un calcul effectué pour une application d'identifiant id_dst, dans le cadre d'une requête d'identifiant id_request, l'application d'identifiant id_src enverra la trame:
+
+WORK_RESPONSE = TRANSFERT(1) (BYTE) 7 (BYTE) id_src (ID) id_dst (ID) request_id (LONG) response (RESPONSE)                
+
+6) Déconnection d'une application:
+   ===============================
+
+Le protocole ne gère que la déconnexion planifiée des applications CONNECTED. Nous allons donc considérer la situation d'une application D qui a une application mère M
+et des applications filles F1,\ldots,F_k.
+
+          M 
+          |
+     +----+----+--------+
+     |         |        | 
+     D        ...      ...
+     |         
+  +--+---+
+  |      |
+  F1     Fk
+
+
+
+Pour gérer les problèmes de concurrence liés à plusieurs déconnexions simultanées, la déconnexion sera orchestrée par l'application mère M.
+Nous allons présenter la déconnexion du point de vue de:
+- de l'application D
+- de l'application mère M
+- des applications filles Fi
+- du reste du réseau.
+
+
+6.1) Déconnexion vue par l'application cherchant à se déconnecter (D) :
+     ------------------------------------------------------------------
+
+Si une application CONNECTED d'identifiant id veut se déconner du réseau, elle doit suivre les étapes suivantes: 
+
+ a) Elle arrête d'accepter de nouvelles connexions initiées avec la trame CONNECT. 
+ b) Elle répond à toutes les WORK_REQUEST en indiquant qu'elle ne traitera aucun calcul. 
+ c) Elle répond négativement (DECONNEXION_REFUSED) aux demandes de déconnexion de ses filles.
+ d) Elle doit attendre de ne plus être impliquée dans la déconnexion d'une de ces applications filles.
+
+ NB: Tant que ce n'est pas explicitement mentionné dans le protocole, elle continue à traiter toutes les autres trames normalement.
+
+Elle envoie une trame LOCAL à son application mère:
+
+DECONNEXION_REQUEST = LOCAL(0) (BYTE) 10 (BYTE) list_daughters (LIST_ID)
+où list_daughters est la liste des identifiants des applications filles
+
+a) L'application mère peut refuser temporairement la déconnexion (car elle est elle-même en train de se déconnecter), elle renvoie alors la trame:
+
+DECONNEXION_DENIED = LOCAL(0) (BYTE) 11 (BYTE) 
+
+L'application doit alors attendre qu'on lui signale la déconnexion de sa mère par une trame DISCONNECTED avant de renouveler sa demande à sa nouvelle mère.
+
+b) La mère accepte le démarrage de la connexion, elle renvoie la trame:
+
+DECONNEXION_GRANTED = LOCAL(0) (BYTE) 12 (BYTE) 
+
+L'application doit alors envoyer à ses applications filles la trame:
+
+PLEASE_RECONNECT = LOCAL(0) (BYTE) 13 (BYTE) id_mother
+où id_mother est l'identifiant de l'application mère.
+
+Elle attend ensuite l'arrivée d'une trame pour fermer toutes ses connexions avec ses voisines:
+
+DISCONNECTED = BROADCAST(2) (BYTE) 15 (BYTE) id_src (ID) id (ID)
+où:
+- id_src (ID) est l'identifiant de l'application mère
+- id est l'identifiant de l'application qui cherche à se déconnecter.
+
+6.2) Déconnexion vue par l'application mère (M) :
+     --------------------------------------------
+
+Lorsqu'une application reçoit d'une de ses applications filles, une trame d'une de ses applications fille id_daughters:
+
+DECONNEXION_REQUEST = LOCAL(0) (BYTE) 10 (BYTE) list_daughters (LIST_ID)
+où list_daughters est composée des identifiants id1,...,idk des filles de l'application qui souhaite se déconnecter (D).
+
+a) Si l'application est en train de se déconnecter, elle renvoie une trame:
+
+DECONNEXION_DENIED = LOCAL(0) (BYTE) 11 (BYTE)  
+
+b) Si la une autre de ses applications filles est en train de se déconnecter, elle attend que cette déconnexion soit terminée avant de répondre par une trame:
+
+DECONNEXION_GRANTED = LOCAL(0) (BYTE) 12 (BYTE) 
+
+Elle va ensuite attendre que les filles de D se connectent sur son port d'écoute avec des trames:
+
+RECONNECT = LOCAL(0) (BYTE) 14 (BYTE) id (ID) list_descendants (LIST_ID)
+où 
+- id est l'un des identifiants  présente dans list_daughters
+- list_descendants est la liste des identifiants de toutes les filles, filles de filles, ... de l'application id.
+
+A la réception de cette trame, si l'id correspond bien à une id de list_daughters, l'application M va mettre à jour sa table de routage en associant à tous les membres de list_ancesters, l'identifiant id.
+
+Une fois que toutes les applications filles de D se sont reconnectées, il ne reste plus de mention de D dans la table routage de M. Il envoie à toutes ses voisines et à D, la trame BROADCAST suivante pour signaler que D doit être supprimé des tables de routages.
+
+DISCONNECTED = BROADCAST(2) (BYTE) 15 (BYTE) id_src (ID) id (ID)
+où:
+- id_src (ID) est l'identifiant de l'application mère M
+- id est l'identifiant de l'application D
+
+6.3) Déconnexion vue par l'application par les applications filles (Fi) :
+     --------------------------------------------------------------------
+
+Quand une application reçoit de son application mère (ici D), une trame:
+
+PLEASE_RECONNECT = LOCAL(0) (BYTE) 13 (BYTE) id_new_mother
+
+Elle établit une nouvelle connexion sur l'identifiant id_new_mother. Elle envoie une trame:
+
+RECONNECT = LOCAL(0) (BYTE) 14 (BYTE) id (ID) list_ancesters (LIST_ID)
+où 
+- id est l'identifiant de l'application 
+- list_descendant est la liste des identifiants de toutes les filles, filles de filles, ... 
+
+Elle modifie sa table de routage pour:
+- supprimer la ligne correspondant à l'application mère
+- remplacer l'identifiant de l'application mère par l'identifiant id_new_mother
+
+Elle peut recevoir des messages de D me n'en enverra plus. Elle attendra que D ferme sa connexion pour la fermer.
+
+6.3) Déconnexion vue le reste du réseau :
+     ------------------------------------
+
+Quand une application reçoit une trame:
+
+DISCONNECTED = BROADCAST(2) (BYTE) 15 (BYTE) id_src (ID) id (ID)
+
+dont l'id n'est pas la sienne, elle va: 
+- supprimer l'entrée correspondant à id de sa table de routage.
+- considérer que tous les calculs affectés à cette application dont la réponse n'a pas été reçue ne sont plus affectés.
+
+Problèmes connus
+----------------
+
+Ceci est un projet pédagogique. La présence d'une panne d'une application n'est pas gérée. La déconnexion du réseau de l'application ROOT n'est pas gérée. Il n'y a aucune forme de protection contre une application byzantine, n'y aucune forme d'authentification pour les applications souhaitant se connecter au réseau. 
+Les applications du réseau exécutent du code arbitraire sans aucune forme d'isolation ce qui représente une faille de sécurité majeure.
+
