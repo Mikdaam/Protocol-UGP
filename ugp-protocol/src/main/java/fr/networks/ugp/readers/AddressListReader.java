@@ -27,7 +27,7 @@ public class AddressListReader implements Reader<ArrayList<SocketAddress>> {
             if (status == ProcessStatus.DONE) {
                 state = State.WAITING_ADDRESSES;
                 nbOfAddress = intReader.get();
-                if (nbOfAddress < 0) {
+                if (nbOfAddress <= 0) {
                     return ProcessStatus.ERROR;
                 }
                 addressList = new ArrayList<>(nbOfAddress);
