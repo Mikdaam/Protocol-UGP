@@ -9,7 +9,7 @@ public class StringReader implements Reader<String> {
         DONE, WAITING_SIZE, WAITING_CONTENT, ERROR
     }
 
-    private StringReader.State state = State.WAITING_SIZE;
+    private State state = State.WAITING_SIZE;
     private final IntReader sizeReader = new IntReader();
     private final ByteBuffer stringBuffer = ByteBuffer.allocate(1_024 - Integer.BYTES); // write-mode
     private String value;
