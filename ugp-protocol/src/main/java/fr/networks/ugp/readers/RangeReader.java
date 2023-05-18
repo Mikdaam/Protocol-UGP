@@ -44,7 +44,7 @@ public class RangeReader implements Reader<Range>{
             state = State.ERROR;
             return ProcessStatus.ERROR;
         }
-
+        state = State.DONE;
         range = new Range(from, to);
         return ProcessStatus.DONE;
     }

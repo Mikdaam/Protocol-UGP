@@ -17,6 +17,7 @@ public class RangeReaderTest {
     public void simple() {
         var expectedRange = new Range(0L, 48523L);
 
-        Assertions.assertEquals(expectedRange, rangeReader.process(expectedRange.encode()));
+        Assertions.assertEquals(Reader.ProcessStatus.DONE, rangeReader.process(expectedRange.encode()));
+        Assertions.assertEquals(expectedRange, rangeReader.get());
     }
 }
