@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 public class TaskRefusedReader implements Reader<Packet> {
   private enum State { DONE, WAITING_TASK_ID, WAITING_RANGE, ERROR }
   private State state = State.WAITING_TASK_ID;
-  private Packet taskRefused;
+  private TaskRefused taskRefused;
   private final TaskIdReader taskIdReader = new TaskIdReader();
   private final RangeReader rangeReader = new RangeReader();
   private TaskId taskId;
@@ -42,7 +42,7 @@ public class TaskRefusedReader implements Reader<Packet> {
   }
 
   @Override
-  public Packet get() {
+  public TaskRefused get() {
     if (state != State.DONE) {
       throw new IllegalStateException();
     }

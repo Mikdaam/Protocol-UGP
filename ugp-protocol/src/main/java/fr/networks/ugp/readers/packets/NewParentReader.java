@@ -33,7 +33,7 @@ public class NewParentReader implements Reader<NewParent> {
   }
 
   public void reset() {
-    socketAddressReader.reset();
     state = State.REFILL;
+    socketAddressReader.reset();
   }
 }

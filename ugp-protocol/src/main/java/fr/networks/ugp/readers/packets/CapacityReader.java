@@ -10,9 +10,10 @@ import fr.networks.ugp.readers.base.IntReader;
 import java.nio.ByteBuffer;
 
 public class CapacityReader implements Reader<Packet> {
-    private enum State { DONE, WAITING_TASK_ID, WAITING_CAPACITY, ERROR };
+    private enum State { DONE, WAITING_TASK_ID, WAITING_CAPACITY, ERROR }
+
     private State state = State.WAITING_TASK_ID;
-    private Packet capacity;
+    private Capacity capacity;
     private TaskId taskId;
     private final TaskIdReader taskIdReader = new TaskIdReader();
     private final IntReader intReader = new IntReader();
@@ -49,7 +50,7 @@ public class CapacityReader implements Reader<Packet> {
     }
 
     @Override
-    public Packet get() {
+    public Capacity get() {
         if (state != State.DONE) {
             throw new IllegalStateException();
         }

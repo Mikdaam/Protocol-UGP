@@ -20,7 +20,7 @@ public class TaskReader implements Reader<Packet> {
     private final URLReader urlReader = new URLReader();
     private final StringReader stringReader = new StringReader();
     private final RangeReader rangeReader = new RangeReader();
-    private Packet task;
+    private Task task;
     private TaskId taskId;
     private URL url;
     private String className;
@@ -74,7 +74,7 @@ public class TaskReader implements Reader<Packet> {
         return ProcessStatus.DONE;
     }
 
-    public Packet get() {
+    public Task get() {
         if (state != State.DONE) {
             throw new IllegalStateException();
         }

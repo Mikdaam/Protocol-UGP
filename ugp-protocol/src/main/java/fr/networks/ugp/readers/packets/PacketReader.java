@@ -1,11 +1,8 @@
 package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.packets.Packet;
-import fr.networks.ugp.packets.TaskAccepted;
 import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.base.ByteReader;
-import fr.networks.ugp.readers.packets.CapacityReader;
-import fr.networks.ugp.readers.packets.TaskReader;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -29,8 +26,8 @@ public class PacketReader implements Reader<Packet> {
         readers.put((byte)2, new CapacityReader());
         readers.put((byte)3, new TaskReader());
         readers.put((byte)4, new TaskAcceptedReader());
-        readers.put((byte)5, new TaskReader());
-        readers.put((byte)6, new TaskReader());
+        readers.put((byte)5, new TaskRefusedReader());
+        readers.put((byte)6, new ResultReader());
         readers.put((byte)7, new TaskReader());
         readers.put((byte)8, new TaskReader());
         readers.put((byte)9, new TaskReader());

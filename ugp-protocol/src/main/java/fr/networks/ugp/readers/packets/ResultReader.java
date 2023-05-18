@@ -1,9 +1,10 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Packet;
 import fr.networks.ugp.packets.Result;
-import fr.networks.ugp.packets.TaskRefused;
+import fr.networks.ugp.readers.Reader;
+import fr.networks.ugp.readers.TaskIdReader;
 import fr.networks.ugp.readers.base.StringReader;
 
 import java.nio.ByteBuffer;
@@ -11,10 +12,11 @@ import java.nio.ByteBuffer;
 public class ResultReader implements Reader<Packet> {
   private enum State { DONE, WAITING_TASK_ID, WAITING_STRING, ERROR }
   private State state = State.WAITING_TASK_ID;
-  private Packet taskRefused;
   private final TaskIdReader taskIdReader = new TaskIdReader();
   private final StringReader stringReader = new StringReader();
   private TaskId taskId;
+  private Result result;
+
   @Override
   public ProcessStatus process(ByteBuffer bb) {
     if (state == State.DONE || state == State.ERROR) {
@@ -35,17 +37,17 @@ public class ResultReader implements Reader<Packet> {
       return status;
     }
     var string = stringReader.get();
-    taskRefused = new Result(taskId, string);
+    result = new Result(taskId, string);
     state = State.DONE;
     return ProcessStatus.DONE;
   }
 
   @Override
-  public Packet get() {
+  public Result get() {
     if (state != State.DONE) {
       throw new IllegalStateException();
     }
-    return taskRefused;
+    return result;
   }
 
   @Override

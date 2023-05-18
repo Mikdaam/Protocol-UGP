@@ -13,7 +13,7 @@ public class AllSentReader implements Reader<Packet> {
   }
 
   @Override
-  public Packet get() {
+  public AllSent get() {
     return new AllSent();
   }
 
