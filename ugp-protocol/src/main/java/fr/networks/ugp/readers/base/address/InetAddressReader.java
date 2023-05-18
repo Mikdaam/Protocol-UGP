@@ -1,5 +1,6 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.base.address;
 
+import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.base.ByteReader;
 
 import java.net.InetAddress;
@@ -7,7 +8,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-public class InetAddressReader implements Reader<InetAddress>{
+public class InetAddressReader implements Reader<InetAddress> {
     private enum State {
         DONE, WAITING_VERSION, WAITING_CONTENT, ERROR
     }
@@ -45,19 +46,18 @@ public class InetAddressReader implements Reader<InetAddress>{
             var status = byteReader.process(bb);
             if (status != ProcessStatus.DONE) {
                 return status;
-            } else {
-                addressBytes.put(byteReader.get());
-                byteReader.reset();
-                if (addressBytes.position() == addressBytes.limit()) {
-                    addressBytes.flip();
-                    try {
-                        inetAddress = InetAddress.getByAddress(addressBytes.array());
-                    } catch (UnknownHostException e) {
-                        throw new AssertionError(e);
-                    }
-                    state = State.DONE;
-                    return ProcessStatus.DONE;
+            }
+            addressBytes.put(byteReader.get());
+            byteReader.reset();
+            if (addressBytes.position() == addressBytes.limit()) {
+                addressBytes.flip();
+                try {
+                    inetAddress = InetAddress.getByAddress(addressBytes.array());
+                } catch (UnknownHostException e) {
+                    throw new AssertionError(e);
                 }
+                state = State.DONE;
+                return ProcessStatus.DONE;
             }
         }
 

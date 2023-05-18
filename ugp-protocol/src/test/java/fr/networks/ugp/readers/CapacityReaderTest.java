@@ -2,12 +2,12 @@ package fr.networks.ugp.readers;
 
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Capacity;
+import fr.networks.ugp.readers.packets.CapacityReader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 
 public class CapacityReaderTest {
     private CapacityReader capacityReader;

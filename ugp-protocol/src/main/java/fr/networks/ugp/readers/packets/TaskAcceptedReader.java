@@ -1,10 +1,12 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.data.TaskId;
+import fr.networks.ugp.readers.Reader;
+import fr.networks.ugp.readers.TaskIdReader;
 
 import java.nio.ByteBuffer;
 
-public class TaskAcceptedReader implements Reader<TaskId>{
+public class TaskAcceptedReader implements Reader<TaskId> {
   private enum State { DONE, REFILL, ERROR }
   private State state = State.REFILL;
   private final TaskIdReader taskIdReader = new TaskIdReader();

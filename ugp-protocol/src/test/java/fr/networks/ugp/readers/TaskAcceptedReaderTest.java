@@ -1,6 +1,7 @@
 package fr.networks.ugp.readers;
 
 import fr.networks.ugp.data.TaskId;
+import fr.networks.ugp.readers.packets.TaskAcceptedReader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

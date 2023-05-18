@@ -1,5 +1,6 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.base.address;
 
+import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.base.IntReader;
 
 import java.net.InetAddress;
