@@ -1,10 +1,12 @@
 package fr.networks.ugp.packets;
 
+import fr.networks.ugp.data.TaskId;
+
 import java.nio.ByteBuffer;
 
-public record TaskAccepted() implements Packet {
+public record TaskAccepted(TaskId id) implements Packet {
     @Override
     public ByteBuffer encode() {
-        return null;
+        return id.encode();
     }
 }

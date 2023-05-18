@@ -1,16 +1,16 @@
 package fr.networks.ugp.readers.packets;
 
-import fr.networks.ugp.data.TaskId;
+import fr.networks.ugp.packets.TaskAccepted;
 import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.TaskIdReader;
 
 import java.nio.ByteBuffer;
 
-public class TaskAcceptedReader implements Reader<TaskId> {
+public class TaskAcceptedReader implements Reader<TaskAccepted> {
   private enum State { DONE, REFILL, ERROR }
   private State state = State.REFILL;
   private final TaskIdReader taskIdReader = new TaskIdReader();
-  private TaskId taskId;
+  private TaskAccepted taskAccepted;
   public ProcessStatus process(ByteBuffer bb) {
     if (state == State.DONE || state == State.ERROR) {
       throw new IllegalStateException();
@@ -20,16 +20,16 @@ public class TaskAcceptedReader implements Reader<TaskId> {
     if(status != ProcessStatus.DONE) {
       return status;
     }
-    taskId = taskIdReader.get();
+    taskAccepted = new TaskAccepted(taskIdReader.get());
     state = State.DONE;
     return ProcessStatus.DONE;
   }
 
-  public TaskId get() {
+  public TaskAccepted get() {
     if (state != State.DONE) {
       throw new IllegalStateException();
     }
-    return taskId;
+    return taskAccepted;
   }
 
   public void reset() {
