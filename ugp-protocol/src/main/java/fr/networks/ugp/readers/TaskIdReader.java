@@ -10,6 +10,8 @@ public class TaskIdReader implements Reader<TaskId>{
         DONE, WAITING_NUMBER, WAITING_ADDRESS, ERROR
     }
 
+    // TODO: Change the order of the reading
+
     private State state = State.WAITING_NUMBER;
     private final SocketAddressReader socketAddressReader = new SocketAddressReader();
     private final LongReader longReader = new LongReader();
