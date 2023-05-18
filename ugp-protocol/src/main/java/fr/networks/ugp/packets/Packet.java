@@ -1,3 +1,7 @@
 package fr.networks.ugp.packets;
 
-public sealed interface Packet permits RequestCapacity { }
+import java.nio.ByteBuffer;
+
+public sealed interface Packet permits RequestCapacity {
+    public ByteBuffer encode();
+}
