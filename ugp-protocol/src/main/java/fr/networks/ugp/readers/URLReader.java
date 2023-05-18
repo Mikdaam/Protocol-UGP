@@ -2,9 +2,7 @@ package fr.networks.ugp.readers;
 
 import fr.networks.ugp.readers.base.StringReader;
 
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 
 public class URLReader implements Reader<URL> {
@@ -33,8 +31,10 @@ public class URLReader implements Reader<URL> {
         }
 
         try {
-            uri = new URI(string);
-        } catch (URISyntaxException e) {
+            uri = new URL(string);
+            state = State.DONE;
+            return ProcessStatus.DONE;
+        } catch (java.net.MalformedURLException e) {
             state = State.ERROR;
             return ProcessStatus.ERROR;
         }
