@@ -1,7 +1,7 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.packets.AllSent;
-import fr.networks.ugp.readers.packets.AllSentReader;
+import fr.networks.ugp.readers.Reader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

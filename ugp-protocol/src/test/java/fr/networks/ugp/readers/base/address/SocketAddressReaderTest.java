@@ -1,6 +1,6 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.base.address;
 
-import fr.networks.ugp.readers.base.address.SocketAddressReader;
+import fr.networks.ugp.readers.Reader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

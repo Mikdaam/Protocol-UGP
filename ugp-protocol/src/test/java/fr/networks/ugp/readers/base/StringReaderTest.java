@@ -1,23 +1,25 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.base;
 
-import fr.networks.ugp.readers.base.StringReader;
+import fr.networks.ugp.readers.Reader;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class StringReaderTest {
 
     @Test
     public void simple() {
-        var string = "\u20ACa\u20AC";
+        var string = "€a€";
         var bb = ByteBuffer.allocate(1024);
         var bytes = StandardCharsets.UTF_8.encode(string);
         bb.putInt(bytes.remaining()).put(bytes);
         StringReader sr = new StringReader();
-        assertEquals(Reader.ProcessStatus.DONE, sr.process(bb));
+        Assertions.assertEquals(Reader.ProcessStatus.DONE, sr.process(bb));
         assertEquals(string, sr.get());
         assertEquals(0, bb.position());
         assertEquals(bb.capacity(), bb.limit());
@@ -25,8 +27,8 @@ public class StringReaderTest {
 
     @Test
     public void reset() {
-        var string = "\u20ACa\u20AC";
-        var string2 = "\u20ACa\u20ACabcd";
+        var string = "€a€";
+        var string2 = "€a€abcd";
         var bb = ByteBuffer.allocate(1024);
         var bytes = StandardCharsets.UTF_8.encode(string);
         var bytes2 = StandardCharsets.UTF_8.encode(string2);
@@ -45,7 +47,7 @@ public class StringReaderTest {
 
     @Test
     public void smallBuffer() {
-        var string = "\u20ACa\u20AC";
+        var string = "€a€";
         var bb = ByteBuffer.allocate(1024);
         var bytes = StandardCharsets.UTF_8.encode(string);
         bb.putInt(bytes.remaining()).put(bytes).flip();

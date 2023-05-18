@@ -1,10 +1,11 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Capacity;
 import fr.networks.ugp.packets.Task;
-import fr.networks.ugp.readers.packets.PacketReader;
+import fr.networks.ugp.readers.Reader;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +37,7 @@ class PacketReaderTest {
         bb.put(type);
         bb.put(capBytes);
 
-        assertEquals(Reader.ProcessStatus.DONE, packetReader.process(bb));
+        Assertions.assertEquals(Reader.ProcessStatus.DONE, packetReader.process(bb));
         assertEquals(expectedPacket, packetReader.get());
     }
 
