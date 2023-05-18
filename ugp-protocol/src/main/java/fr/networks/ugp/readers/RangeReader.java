@@ -6,7 +6,7 @@ import fr.networks.ugp.readers.base.LongReader;
 import java.nio.ByteBuffer;
 
 public class RangeReader implements Reader<Range>{
-    public enum State { DONE, WAITING_FROM, WAITING_TO, ERROR };
+    public enum State { DONE, WAITING_FROM, WAITING_TO, ERROR }
 
     private State state = State.WAITING_FROM;
     private Long from;

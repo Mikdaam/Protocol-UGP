@@ -1,12 +1,14 @@
 package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.packets.Packet;
+import fr.networks.ugp.packets.TaskAccepted;
 import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.base.ByteReader;
 import fr.networks.ugp.readers.packets.CapacityReader;
 import fr.networks.ugp.readers.packets.TaskReader;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Map;
 
 public class PacketReader implements Reader<Packet> {
@@ -18,13 +20,28 @@ public class PacketReader implements Reader<Packet> {
     private final ByteReader byteReader = new ByteReader();
     private byte type;
 
-    private final Map<Byte, Reader<Packet>> readers = Map
-            .of(
-                    (byte)1, new CapacityReader(),
-                    (byte)2, new CapacityReader(),
-                    (byte)3, new TaskReader()
-            );
+    private final Map<Byte, Reader<Packet>> readers;
     private Packet packet;
+
+    public PacketReader() {
+        readers = new HashMap<>();
+        readers.put((byte)1, new CapacityReader());
+        readers.put((byte)2, new CapacityReader());
+        readers.put((byte)3, new TaskReader());
+        readers.put((byte)4, new TaskAcceptedReader());
+        readers.put((byte)5, new TaskReader());
+        readers.put((byte)6, new TaskReader());
+        readers.put((byte)7, new TaskReader());
+        readers.put((byte)8, new TaskReader());
+        readers.put((byte)9, new TaskReader());
+        readers.put((byte)10, new TaskReader());
+        readers.put((byte)11, new TaskReader());
+        readers.put((byte)12, new TaskReader());
+        readers.put((byte)13, new TaskReader());
+        readers.put((byte)14, new TaskReader());
+        readers.put((byte)15, new TaskReader());
+    }
+
     @Override
     public ProcessStatus process(ByteBuffer bb) {
         if (state == State.DONE || state == State.ERROR) {
