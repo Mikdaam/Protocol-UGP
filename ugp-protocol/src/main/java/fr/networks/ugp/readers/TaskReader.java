@@ -2,27 +2,24 @@ package fr.networks.ugp.readers;
 
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Packet;
-import fr.networks.ugp.readers.base.LongReader;
+import fr.networks.ugp.packets.Task;
 import fr.networks.ugp.readers.base.StringReader;
 
 import java.net.URL;
 import java.nio.ByteBuffer;
 
 public class TaskReader implements Reader<Packet> {
-    public enum State { DONE, WAITING_TASK_ID, WAITING_URL, WAITING_CLASSNAME, WAITING_FROM, WAITING_TO, ERROR };
+    public enum State { DONE, WAITING_TASK_ID, WAITING_URL, WAITING_CLASSNAME, WAITING_RANGE, ERROR }
 
     private State state = State.WAITING_TASK_ID;
     private final TaskIdReader taskIdReader = new TaskIdReader();
     private final URLReader urlReader = new URLReader();
     private final StringReader stringReader = new StringReader();
-    private final LongReader longReader = new LongReader();
+    private final RangeReader rangeReader = new RangeReader();
     private Packet task;
     private TaskId taskId;
     private URL url;
     private String className;
-    private Long from;
-    private Long to;
-
     public ProcessStatus process(ByteBuffer bb) {
         if (state == State.DONE || state == State.ERROR) {
             throw new IllegalStateException();
@@ -52,20 +49,25 @@ public class TaskReader implements Reader<Packet> {
                 return status;
             }
             className = stringReader.get();
-            state = State.WAITING_FROM;
+
+            if(className.length() == 0) {
+                state = State.ERROR;
+                return ProcessStatus.ERROR;
+            }
+
+            state = State.WAITING_RANGE;
         }
 
-        /*if(state == State.WAITING_FROM) {
-            var status = longReader.process(bb);
-            if(status != ProcessStatus.DONE) {
-                return status;
-            }
-            from = longReader.get();
-            state = State.WAITING_TO;
-            longReader.reset();
-        }*/
-        // TODO RangeReader
-        return ProcessStatus.ERROR;
+        var status = rangeReader.process(bb);
+        if(status != ProcessStatus.DONE) {
+            return status;
+        }
+
+        state = State.DONE;
+        var range = rangeReader.get();
+        task = new Task(taskId, url, className, range);
+
+        return ProcessStatus.DONE;
     }
 
     public Packet get() {
@@ -79,7 +81,7 @@ public class TaskReader implements Reader<Packet> {
         taskIdReader.reset();
         urlReader.reset();
         stringReader.reset();
-        longReader.reset();
+        rangeReader.reset();
         state = State.WAITING_TASK_ID;
     }
 }
