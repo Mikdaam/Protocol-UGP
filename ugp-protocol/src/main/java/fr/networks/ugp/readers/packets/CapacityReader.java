@@ -1,13 +1,15 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Capacity;
 import fr.networks.ugp.packets.Packet;
+import fr.networks.ugp.readers.Reader;
+import fr.networks.ugp.readers.TaskIdReader;
 import fr.networks.ugp.readers.base.IntReader;
 
 import java.nio.ByteBuffer;
 
-public class CapacityReader implements Reader<Packet>{
+public class CapacityReader implements Reader<Packet> {
     private enum State { DONE, WAITING_TASK_ID, WAITING_CAPACITY, ERROR };
     private State state = State.WAITING_TASK_ID;
     private Packet capacity;

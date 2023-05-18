@@ -1,8 +1,11 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Packet;
 import fr.networks.ugp.packets.TaskRefused;
+import fr.networks.ugp.readers.RangeReader;
+import fr.networks.ugp.readers.Reader;
+import fr.networks.ugp.readers.TaskIdReader;
 
 import java.nio.ByteBuffer;
 

@@ -1,8 +1,12 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Packet;
 import fr.networks.ugp.packets.Task;
+import fr.networks.ugp.readers.RangeReader;
+import fr.networks.ugp.readers.Reader;
+import fr.networks.ugp.readers.TaskIdReader;
+import fr.networks.ugp.readers.URLReader;
 import fr.networks.ugp.readers.base.StringReader;
 
 import java.net.URL;

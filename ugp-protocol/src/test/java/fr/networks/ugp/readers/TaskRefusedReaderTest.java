@@ -3,6 +3,7 @@ package fr.networks.ugp.readers;
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.TaskRefused;
+import fr.networks.ugp.readers.packets.TaskRefusedReader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

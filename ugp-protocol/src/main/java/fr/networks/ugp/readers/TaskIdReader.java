@@ -2,6 +2,7 @@ package fr.networks.ugp.readers;
 
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.readers.base.LongReader;
+import fr.networks.ugp.readers.base.address.SocketAddressReader;
 
 import java.nio.ByteBuffer;
 
