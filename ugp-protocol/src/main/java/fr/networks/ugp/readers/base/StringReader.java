@@ -14,7 +14,7 @@ public class StringReader implements Reader<String> {
 
     private State state = State.WAITING_SIZE;
     private final IntReader sizeReader = new IntReader();
-    private final ByteBuffer stringBuffer = ByteBuffer.allocate(1_024 - Integer.BYTES); // write-mode
+    private final ByteBuffer stringBuffer = ByteBuffer.allocate(10_004 - Integer.BYTES); // write-mode
     private String value;
 
     private void fillBuffer(ByteBuffer buffer, ByteBuffer internalBuffer) {
@@ -44,7 +44,7 @@ public class StringReader implements Reader<String> {
             if (status == ProcessStatus.DONE) {
                 state = State.WAITING_CONTENT;
                 int size = sizeReader.get();
-                if (size < 0 || size > 1020) {
+                if (size <= 0 || size > 10000) { // TODO Revoir la taille max d'un string
                     return ProcessStatus.ERROR;
                 }
                 stringBuffer.limit(size);

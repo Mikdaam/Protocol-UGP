@@ -2,6 +2,6 @@ package fr.networks.ugp.packets;
 
 import java.nio.ByteBuffer;
 
-public sealed interface Packet permits Capacity, CapacityRequest, PartialResult, Task, TaskAccepted, TaskRefused {
+public sealed interface Packet permits CapacityRequest, Capacity, Task, TaskRefused {
     public ByteBuffer encode();
 }
