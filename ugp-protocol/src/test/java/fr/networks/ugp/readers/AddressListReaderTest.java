@@ -54,6 +54,14 @@ class AddressListReaderTest {
     }
 
     @Test
+    void zeroAddressTest() {
+        ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES);
+        bb.putInt(0);
+
+        Assertions.assertEquals(Reader.ProcessStatus.ERROR, addressListReader.process(bb));
+    }
+
+    @Test
     void invalidState_ShouldThrowIllegalStateException() {
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 8080);
 
