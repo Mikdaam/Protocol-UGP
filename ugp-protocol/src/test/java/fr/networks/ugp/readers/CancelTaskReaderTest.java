@@ -1,6 +1,7 @@
 package fr.networks.ugp.readers;
 
 import fr.networks.ugp.data.TaskId;
+import fr.networks.ugp.packets.CancelTask;
 import fr.networks.ugp.readers.packets.CancelTaskReader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,9 +21,9 @@ public class CancelTaskReaderTest {
   void simple() {
     long id = 123456789L;
     InetSocketAddress address = new InetSocketAddress("127.0.0.1", 8080);
-    TaskId expectedTaskId = new TaskId(id, address);
+    CancelTask expectedCancelTask = new CancelTask(new TaskId(id, address));
 
-    Assertions.assertEquals(Reader.ProcessStatus.DONE, cancelTaskReader.process(expectedTaskId.encode()));
-    Assertions.assertEquals(expectedTaskId, cancelTaskReader.get());
+    Assertions.assertEquals(Reader.ProcessStatus.DONE, cancelTaskReader.process(expectedCancelTask.encode()));
+    Assertions.assertEquals(expectedCancelTask, cancelTaskReader.get());
   }
 }
