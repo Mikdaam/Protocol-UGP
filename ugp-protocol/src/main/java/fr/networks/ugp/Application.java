@@ -164,8 +164,12 @@ public class Application {
         });
     }
 
+    public void sendTo(Packet packet, Context context) {
+        context.queueMessage(packet);
+    }
+
     public boolean hasNeighbors(int minus) {
-        return selector.keys().size() - minus> 1;
+        return selector.keys().size() - minus > 1;
     }
 
 

@@ -5,7 +5,6 @@ import fr.networks.ugp.readers.packets.PacketReader;
 import fr.networks.ugp.packets.*;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -144,7 +143,7 @@ public class Context {
 
         private byte getOpCode(Packet packet) {
             return switch (packet) {
-                case AllSent allSent -> {
+                case AllSent ignored -> {
                     yield 0;
                 }
                 case AllowDeconnection allowDeconnection -> {
