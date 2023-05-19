@@ -1,12 +1,13 @@
 package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.packets.NewParent;
+import fr.networks.ugp.packets.Packet;
 import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.base.address.SocketAddressReader;
 
 import java.nio.ByteBuffer;
 
-public class NewParentReader implements Reader<NewParent> {
+public class NewParentReader implements Reader<Packet> {
   private enum State { DONE, REFILL, ERROR }
   private State state = State.REFILL;
   private final SocketAddressReader socketAddressReader = new SocketAddressReader();

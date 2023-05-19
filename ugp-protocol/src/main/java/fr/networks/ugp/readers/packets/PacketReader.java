@@ -15,28 +15,28 @@ public class PacketReader implements Reader<Packet> {
 
     private State state = State.WAITING_TYPE;
     private final ByteReader byteReader = new ByteReader();
-    private byte type;
+    private int type;
 
-    private final Map<Byte, Reader<Packet>> readers;
+    private final Map<Integer, Reader<Packet>> readers;
     private Packet packet;
 
     public PacketReader() {
         readers = new HashMap<>();
-        readers.put((byte)1, new CapacityReader());
-        readers.put((byte)2, new CapacityReader());
-        readers.put((byte)3, new TaskReader());
-        readers.put((byte)4, new TaskAcceptedReader());
-        readers.put((byte)5, new TaskRefusedReader());
-        readers.put((byte)6, new ResultReader());
-        readers.put((byte)7, new TaskReader());
-        readers.put((byte)8, new TaskReader());
-        readers.put((byte)9, new TaskReader());
-        readers.put((byte)10, new TaskReader());
-        readers.put((byte)11, new TaskReader());
-        readers.put((byte)12, new TaskReader());
-        readers.put((byte)13, new TaskReader());
-        readers.put((byte)14, new TaskReader());
-        readers.put((byte)15, new TaskReader());
+        readers.put(1, new CapacityRequestReader());
+        readers.put(2, new CapacityReader());
+        readers.put(3, new TaskReader());
+        readers.put(4, new TaskAcceptedReader());
+        readers.put(5, new TaskRefusedReader());
+        readers.put(6, new ResultReader());
+        readers.put(7, new LeavingNotificationReader());
+        readers.put(8, new NotifyChildReader());
+        readers.put(9, new CancelTaskReader());
+        readers.put(10, new PartialResultReader());
+        readers.put(11, new NewParentReader());
+        readers.put(12, new TaskReader());
+        readers.put(13, new ResumeTaskReader());
+        readers.put(14, new AllSentReader());
+        readers.put(15, new AllowDeconnectionReader());
     }
 
     @Override

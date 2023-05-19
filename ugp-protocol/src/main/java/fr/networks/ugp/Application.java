@@ -1,15 +1,20 @@
 package fr.networks.ugp;
 
-import fr.networks.ugp.packets.Packet;
+import fr.networks.ugp.data.Range;
+import fr.networks.ugp.data.TaskId;
+import fr.networks.ugp.packets.*;
 import fr.networks.ugp.readers.packets.PacketReader;
+import fr.networks.ugp.utils.CommandParser;
 import fr.networks.ugp.utils.Helpers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
-import java.util.ArrayDeque;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -22,14 +27,14 @@ public class Application {
         private final ArrayDeque<Packet> queue = new ArrayDeque<>();
         private final Application server; // we could also have Context as an instance class, which would naturally
         // give access to ServerChat.this
-        private final PacketReader packetReader;
+        private final PacketReader packetReader = new PacketReader();
         private boolean closed = false;
 
         private Context(Application server, SelectionKey key) {
             this.key = key;
             this.sc = (SocketChannel) key.channel();
             this.server = server;
-            packetReader = new PacketReader();
+            //packetReader = new PacketReader();
         }
 
         /**
@@ -44,8 +49,9 @@ public class Application {
                 var status = packetReader.process(bufferIn);
                 switch (status) {
                     case DONE -> {
-                        var value = packetReader.get();
-                        server.broadcast(value);
+                        var packet = packetReader.get();
+                        System.out.println("Received: " + packet);
+                        processPacket(packet);
                         packetReader.reset();
                     }
                     case REFILL -> {
@@ -59,13 +65,48 @@ public class Application {
             }
         }
 
+        private void processPacket(Packet packet) {
+            switch (packet) {
+                case AllSent allSent -> {
+                }
+                case AllowDeconnection allowDeconnection -> {
+                }
+                case CancelTask cancelTask -> {
+                }
+                case Capacity capacity -> {
+
+                }
+                case CapacityRequest capacityRequest -> {
+                    // Demande de capacité
+                    System.out.println("Received capacity request");
+                }
+                case LeavingNotification leavingNotification -> {
+                }
+                case NewParent newParent -> {
+                }
+                case NotifyChild notifyChild -> {
+                }
+                case PartialResult partialResult -> {
+                }
+                case Result result -> {
+                }
+                case ResumeTask resumeTask -> {
+                }
+                case Task task -> {
+                }
+                case TaskAccepted taskAccepted -> {
+                }
+                case TaskRefused taskRefused -> {
+                }
+            }
+        }
         /**
          * Add a message to the message queue, tries to fill bufferOut and updateInterestOps
          *
-         * @param msg message
+         * @param packet packet
          */
-        public void queueMessage(Packet msg) {
-            queue.add(msg);
+        public void queueMessage(Packet packet) {
+            queue.add(packet);
             processOut();
             updateInterestOps();
         }
@@ -76,14 +117,23 @@ public class Application {
          */
         private void processOut() {
             while (!queue.isEmpty()) {
-                var msg = queue.remove().encode().flip();
-                if (bufferOut.remaining() < msg.remaining()) {
-                    return;
-                }
-                bufferOut.put(msg);
+                var packet = queue.remove();
+                var opCode = getOpCode(packet);
+                var packetBuffer = packet.encode();
+                packetBuffer.flip();
+
+                var buffer = ByteBuffer.allocate(Byte.BYTES + packetBuffer.remaining());
+                buffer.put(opCode);
+                buffer.put(packetBuffer);
+                buffer.flip();
+
+                bufferOut.put(buffer);
             }
         }
 
+        private byte getOpCode(Packet packet) {
+            return 1;
+        }
         /**
          * Update the interestOps of the key looking only at values of the boolean
          * closed and of both ByteBuffers.
@@ -166,21 +216,105 @@ public class Application {
 
     private final ServerSocketChannel serverSocketChannel;
     private final Selector selector;
+    private final SocketChannel sc;
+    private final InetSocketAddress serverAddress;
+    private Queue<String> queue = new ArrayDeque<>();
+    private final Thread console;
+    private final Object lock = new Object();
+    private final ArrayList<Context> connectedClients = new ArrayList<>();
+    private final HashMap<SocketAddress, Integer> capacityTable = new HashMap<>();
+    private final HashMap<TaskId, Task> tasks = new HashMap<>();
+    private long taskCounter = 0;
 
-    public Application(int port) throws IOException {
+    public Application(InetSocketAddress serverAddress, int port) throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.bind(new InetSocketAddress(port));
         selector = Selector.open();
+        sc = SocketChannel.open();
+        sc.bind(new InetSocketAddress(port));
+        this.serverAddress = serverAddress;
+        this.console = Thread.ofPlatform().unstarted(this::consoleRun);
+    }
+
+    public Application(int port) throws IOException {
+        this(null, port); // TODO: A modifier
+    }
+
+
+    private void consoleRun() {
+        try {
+            try (var scanner = new Scanner(System.in)) {
+                while (scanner.hasNextLine()) {
+                    var msg = scanner.nextLine();
+                    sendCommand(msg);
+                }
+            }
+            logger.info("Console thread stopping");
+        } catch (InterruptedException e) {
+            logger.info("Console thread has been interrupted");
+        }
+    }
+
+    private void sendCommand(String msg) throws InterruptedException {
+        synchronized (lock) {
+            queue.add(msg);
+            selector.wakeup();
+        }
+    }
+
+    private void processCommands() throws IOException {
+        synchronized (lock) {
+            var msg = queue.poll();
+            if(msg == null) {
+                return;
+            }
+            var command = CommandParser.parseCommand(msg);
+            if(command.isEmpty()) {
+                return;
+            }
+            switch (command.get()) {
+                case CommandParser.Start start -> {
+                    TaskId taskId;
+                    if(serverAddress == null) {
+                         taskId = new TaskId(taskCounter, ((InetSocketAddress) serverSocketChannel.getLocalAddress()));
+                    } else {
+                         taskId = new TaskId(taskCounter, ((InetSocketAddress) sc.getLocalAddress()));
+                    }
+                    var url = new URL(start.urlJar());
+                    var range = new Range(start.startRange(), start.endRange());
+
+                    var task = new Task(taskId, url, start.fullyQualifiedName(), range);
+                    tasks.put(taskId, task);
+                    taskCounter++;
+
+                    broadcast(new CapacityRequest(taskId));
+                }
+                case CommandParser.Disconnect disconnect -> {
+                    System.out.println();
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + command);
+            }
+        }
     }
 
     public void launch() throws IOException {
         serverSocketChannel.configureBlocking(false);
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+        sc.configureBlocking(false);
+        if(serverAddress != null) {
+            var key = sc.register(selector, SelectionKey.OP_CONNECT);
+            key.attach(new Context(this, key));
+            sc.connect(serverAddress);
+        }
+
+        console.start();
+
         while (!Thread.interrupted()) {
             Helpers.printKeys(selector); // for debug
             System.out.println("Starting select");
             try {
                 selector.select(this::treatKey);
+                processCommands();
             } catch (UncheckedIOException tunneled) {
                 throw tunneled.getCause();
             }
@@ -199,6 +333,9 @@ public class Application {
             throw new UncheckedIOException(ioe);
         }
         try {
+            if (key.isValid() && key.isConnectable()) {
+                ((Context) key.attachment()).doConnect(); // Replaced UniqueContext
+            }
             if (key.isValid() && key.isWritable()) {
                 ((Context) key.attachment()).doWrite();
             }
@@ -234,26 +371,32 @@ public class Application {
     /**
      * Add a message to all connected clients queue
      *
-     * @param msg message
+     * @param packet packet to broadcast
      */
-    private void broadcast(Packet msg) {
+    private void broadcast(Packet packet) {
         selector.keys().forEach(selectionKey -> {
             if (selectionKey.channel() instanceof ServerSocketChannel) {
                 return;
             }
-            ((Context) selectionKey.attachment()).queueMessage(msg);
+            ((Context) selectionKey.attachment()).queueMessage(packet);
         });
     }
 
     public static void main(String[] args) throws NumberFormatException, IOException {
-        if (args.length != 1) {
+        if (args.length < 1) {
             usage();
             return;
+        } else if(args.length == 1) {
+            new Application(Integer.parseInt(args[0])).launch();
+        } else {
+            new Application(new InetSocketAddress(args[1], Integer.parseInt(args[2])), Integer.parseInt(args[0])).launch();
         }
-        new Application(Integer.parseInt(args[0])).launch();
     }
 
     private static void usage() {
-        System.out.println("Usage : ServerSumBetter port");
+        System.out.println("Usage : Application port <dest_hostname> <dest_port>");
     }
 }
+
+// TEST LINE
+// START http://www-igm.univ-mlv.fr/~carayol/Factorizer.jar fr.uge.factors.Factorizer 0 150 ./res/text.txt
