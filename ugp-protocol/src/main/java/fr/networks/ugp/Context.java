@@ -71,8 +71,9 @@ public class Context {
                     System.out.println("Received capacity response");
                     System.out.println("Received " + capacity);
                     if (application.hasNeighbors(1)) {
-                        System.out.println("Send to emitters");
-                        application.broadcastExceptOne(packet, this);
+                        System.out.println("Send to emitter");
+                        var context = application.getFromTaskTable(capacity.id()); // <==
+                        application.sendTo(new Capacity(capacity.id(), capacity.capacity() + 1), context); // <==
                     } else {
                         System.out.println("Divide task [get a part] and send the rest to neighbors");
 
@@ -81,6 +82,9 @@ public class Context {
                 case CapacityRequest capacityRequest -> {
                     System.out.println("Received capacity request");
                     System.out.println("Received: " + capacityRequest);
+
+                    application.updateTaskTable(capacityRequest.taskId(), this); // <==
+
                     if (application.hasNeighbors(1)) {
                         System.out.println("Send to neighbors");
                         application.broadcastExceptOne(packet, this);

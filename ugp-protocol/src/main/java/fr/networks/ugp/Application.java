@@ -31,6 +31,7 @@ public class Application {
     private final Object lock = new Object();
     private final ArrayList<Context> children = new ArrayList<>();
     private final HashMap<SocketAddress, Integer> capacityTable = new HashMap<>();
+    private final HashMap<TaskId, Context> taskTable = new HashMap<>();
     private final HashMap<TaskId, Task> tasks = new HashMap<>();
     private long taskCounter = 0;
     private final int port;
@@ -172,6 +173,13 @@ public class Application {
         return selector.keys().size() - minus > 1;
     }
 
+    public Context getFromTaskTable(TaskId taskId) {
+        return taskTable.get(taskId);
+    }
+
+    public void updateTaskTable(TaskId taskId, Context context) {
+        taskTable.put(taskId, context);
+    }
 
     private void doAccept(SelectionKey key) throws IOException {
         var client = serverSocketChannel.accept();
