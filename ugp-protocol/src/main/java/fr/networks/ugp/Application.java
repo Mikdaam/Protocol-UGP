@@ -225,6 +225,7 @@ public class Application {
     private final HashMap<SocketAddress, Integer> capacityTable = new HashMap<>();
     private final HashMap<TaskId, Task> tasks = new HashMap<>();
     private long taskCounter = 0;
+    private final int port;
 
     public Application(InetSocketAddress serverAddress, int port) throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
