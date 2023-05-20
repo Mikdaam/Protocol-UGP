@@ -35,8 +35,8 @@ public class Application {
     private final Queue<String> queue = new ArrayDeque<>();
     private final ArrayList<Context> children = new ArrayList<>();
     private final HashMap<TaskId, CapacityHandler> capacityTable = new HashMap<>();
-    private final HashMap<TaskId, Context> taskTable = new HashMap<>();
-    private final HashMap<TaskId, Task> tasks = new HashMap<>();
+    private final HashMap<TaskId, TaskHandler> taskTable = new HashMap<>();
+    private final HashMap<TaskId, Task> currentTasks = new HashMap<>();
     private long taskCounter = 0;
 
     public Application(InetSocketAddress serverAddress, int port) throws IOException {
@@ -251,14 +251,6 @@ public class Application {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public Context getFromTaskTable(TaskId taskId) {
-        return taskTable.get(taskId);
-    }
-
-    public void updateTaskTable(TaskId taskId, Context context) {
-        taskTable.put(taskId, context);
     }
 
     private void doAccept(SelectionKey key) throws IOException {
