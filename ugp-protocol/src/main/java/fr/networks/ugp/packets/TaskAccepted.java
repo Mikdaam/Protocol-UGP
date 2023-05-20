@@ -12,6 +12,6 @@ public record TaskAccepted(TaskId id) implements Packet {
 
     @Override
     public byte type() {
-        return 0;
+        return 4;
     }
 }

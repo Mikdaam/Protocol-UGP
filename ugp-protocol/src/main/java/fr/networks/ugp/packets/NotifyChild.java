@@ -10,6 +10,6 @@ public record NotifyChild() implements Packet {
 
   @Override
   public byte type() {
-    return 0;
+    return 8;
   }
 }

@@ -37,6 +37,6 @@ public record Task(TaskId id, URL url, String className, Range range) implements
 
     @Override
     public byte type() {
-        return 0;
+        return 3;
     }
 }

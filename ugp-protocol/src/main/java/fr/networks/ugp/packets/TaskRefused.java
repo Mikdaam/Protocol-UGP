@@ -21,6 +21,6 @@ public record TaskRefused(TaskId id, Range range) implements Packet {
 
   @Override
   public byte type() {
-    return 0;
+    return 5;
   }
 }

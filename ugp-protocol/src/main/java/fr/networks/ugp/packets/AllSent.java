@@ -10,6 +10,6 @@ public record AllSent() implements Packet {
 
   @Override
   public byte type() {
-    return 0;
+    return 14;
   }
 }

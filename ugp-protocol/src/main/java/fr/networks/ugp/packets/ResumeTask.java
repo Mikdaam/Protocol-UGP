@@ -10,6 +10,6 @@ public record ResumeTask() implements Packet {
 
   @Override
   public byte type() {
-    return 0;
+    return 13;
   }
 }

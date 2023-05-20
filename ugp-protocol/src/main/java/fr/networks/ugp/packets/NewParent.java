@@ -22,6 +22,6 @@ public record NewParent(InetSocketAddress newParent) implements Packet {
 
   @Override
   public byte type() {
-    return 0;
+    return 11;
   }
 }

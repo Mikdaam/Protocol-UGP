@@ -44,6 +44,6 @@ public record PartialResult(TaskId id, InetSocketAddress socketAddress, Range ra
 
     @Override
     public byte type() {
-        return 0;
+        return 10;
     }
 }
