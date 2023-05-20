@@ -31,6 +31,7 @@ public class Application {
     private final Thread console;
     private final Object lock = new Object();
 
+
     private final Queue<String> queue = new ArrayDeque<>();
     private final ArrayList<Context> children = new ArrayList<>();
     private final HashMap<TaskId, CapacityHandler> capacityTable = new HashMap<>();
@@ -92,11 +93,10 @@ public class Application {
                     var url = new URL(start.urlJar());
                     var range = new Range(start.startRange(), start.endRange());
 
-                    var task = new Task(taskId, url, start.fullyQualifiedName(), range);
-                    tasks.put(taskId, task);
+                    currentTasks.put(taskId, new Task(taskId, url, start.fullyQualifiedName(), range));
                     taskCounter++;
-                    capacityTable.put(taskId, new CapacityHandler(null, neighborsNumber()));
 
+                    capacityTable.put(taskId, new CapacityHandler(null, neighborsNumber()));
                     broadcast(new CapacityRequest(taskId));
                 }
                 case CommandParser.Disconnect disconnect -> {
@@ -159,10 +159,73 @@ public class Application {
         }
     }
 
-    public void sentCapacityRequest(CapacityRequest packet, Context emitter) {
-        var capacityHandler = new CapacityHandler(emitter, neighborsNumber() - 1); // -2 because we remove the serverSocketChannel and the emitter
+    public void sendCapacityRequest(CapacityRequest packet, Context emitter) {
+        var capacityHandler = new CapacityHandler(emitter, neighborsNumber() - 1);
         capacityTable.put(packet.taskId(), capacityHandler);
         sendToNeighborsExceptOne(packet, emitter);
+    }
+
+    public boolean receiveCapacity(Capacity capacity, Context context) {
+        var capacityHandler = capacityTable.get(capacity.id());
+        var state = capacityHandler.handleCapacity(capacity, context);
+
+        return state == CapacityHandler.State.RECEIVED_SUM;
+    }
+
+    public void receiveTask(Task task) {
+        var id = task.id();
+        currentTasks.put(id, task);
+
+        var capacityHandler = capacityTable.get(id);
+        var taskHandle = taskTable.get(id);
+        if(capacityHandler != null) { // if accepted
+            distributeTask(id);
+            taskHandle.sendTaskAccepted();
+        } else {
+            taskHandle.sendTaskRefused(task.range());
+        }
+    }
+
+    public void distributeTask(TaskId id) {
+        var task = currentTasks.get(id);
+        long range = task.range().diff();
+
+        var capacityHandler = capacityTable.get(task.id());
+        var totalCapacity = capacityHandler.capacitySum() + 1;
+
+        long unit = range / totalCapacity;
+
+        var from = task.range().from();
+        long start = from;
+        long limit = start + unit;
+
+        var subTask = new Task(id, task.url(), task.className(), new Range(start, limit));
+        System.out.println("Add task : " + subTask);
+        //TODO launch the sub task ourself
+
+        // Send the rest to neighbors
+        distributeTaskToNeighbors(task, from, limit, unit, capacityHandler);
+    }
+
+    private void distributeTaskToNeighbors(Task task, long from, long offset, long unit, CapacityHandler capacityHandler) {
+        long start = 0;
+        long limit = 0;
+        var capacityTable = capacityHandler.getCapacityTable();
+
+        var taskHandler = new TaskHandler(task.id(), null, capacityTable.size() + 1);
+
+        for (Map.Entry<Context, Integer> entry : capacityTable.entrySet()) {
+            start = from + offset;
+            var capacity = entry.getValue();
+            limit = start + unit * capacity;
+            offset = limit;
+
+            var subTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
+            System.out.println("Add task : " + subTask);
+            var context = entry.getKey();
+            context.queueMessage(subTask);
+            taskHandler.addDestination(context);
+        }
     }
 
     public void sendToNeighborsExceptOne(Packet packet, Context exception) {
@@ -171,11 +234,6 @@ public class Application {
                 .map(selectionKey -> (Context) selectionKey.attachment())
                 .filter(context -> context != exception)
                 .forEach(context -> context.queueMessage(packet));
-    }
-
-    public void receivedCapacity(Capacity capacity, Context context) {
-        var capacityHandler = capacityTable.get(capacity.id());
-        capacityHandler.handleCapacity(capacity, context);
     }
 
     public int neighborsNumber() {
@@ -256,4 +314,4 @@ public class Application {
 }
 
 // TEST LINE
-// START http://www-igm.univ-mlv.fr/~carayol/Factorizer.jar fr.uge.factors.Factorizer 0 150 ./res/text.txt
+// START http://www-igm.univ-mlv.fr/~carayol/Factorizer.jar fr.uge.factors.Factorizer 0 200 ./res/text.txt

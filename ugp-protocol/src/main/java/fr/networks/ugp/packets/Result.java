@@ -1,6 +1,5 @@
 package fr.networks.ugp.packets;
 
-import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 
 import java.nio.ByteBuffer;

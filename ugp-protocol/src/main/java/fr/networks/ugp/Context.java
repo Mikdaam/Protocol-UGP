@@ -40,8 +40,6 @@ public class Context {
     private void processIn() {
         while (true) {
             var status = packetReader.process(bufferIn);
-            System.out.println("Process In buff");
-            System.out.println("status : " + status);
             switch (status) {
                 case DONE -> {
                     var packet = packetReader.get();
@@ -68,12 +66,20 @@ public class Context {
             case CancelTask cancelTask -> {
             }
             case Capacity capacity -> {
-                application.receivedCapacity(capacity, this);
+                System.out.println("Received capacity response");
+                System.out.println("Received: " + capacity);
+                var allReceived = application.receiveCapacity(capacity, this);
+                if (allReceived) {
+                    application.distributeTask(capacity.id());
+                }
             }
             case CapacityRequest capacityRequest -> {
+                System.out.println("Received capacity request");
+                System.out.println("Received: " + capacityRequest);
+                // TODO : Refactor the this ...
                 if (application.hasNeighborsExceptEmitter()) {
                     System.out.println("Send to neighborsExceptMe");
-                    application.sentCapacityRequest(capacityRequest, this);
+                    application.sendCapacityRequest(capacityRequest, this);
                 } else {
                     System.out.println("Respond");
                     queueMessage(new Capacity(capacityRequest.taskId(), 1));
@@ -92,11 +98,17 @@ public class Context {
             case ResumeTask resumeTask -> {
             }
             case Task task -> {
-
+                System.out.println("Received task request");
+                System.out.println("Received: " + task);
+                application.receiveTask(task);
             }
             case TaskAccepted taskAccepted -> {
+                System.out.println("Received task response[OK]");
+                System.out.println("Received: " + taskAccepted);
             }
             case TaskRefused taskRefused -> {
+                System.out.println("Received task response[KO]");
+                System.out.println("Received: " + taskRefused);
             }
         }
     }

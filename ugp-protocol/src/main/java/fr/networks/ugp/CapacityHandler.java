@@ -5,44 +5,56 @@ import fr.networks.ugp.packets.Capacity;
 import java.util.HashMap;
 
 public class CapacityHandler {
-  private final HashMap<Context, Integer> capacityTable = new HashMap<>();
-  private int responseToWait;
-  private final Context emitter;
+	public static enum State { WAITING_RESPONSE, SENT_TO_EMITTER, RECEIVED_SUM };
 
-  public CapacityHandler(Context emitter, int responseToWait) {
-    this.emitter = emitter;
-    this.responseToWait = responseToWait;
-  }
+	private final HashMap<Context, Integer> capacityTable = new HashMap<>();
+	private final Context emitter;
+	private int responseToWait;
+	private State state = State.WAITING_RESPONSE;
 
-  public void handleCapacity(Capacity capacity, Context receivedFrom) {
-    responseToWait -= 1;
-    capacityTable.put(receivedFrom, capacity.capacity());
+	public CapacityHandler(Context emitter, int responseToWait) {
+		this.emitter = emitter;
+		this.responseToWait = responseToWait;
+	}
 
-    if(responseToWait > 0) {
-      return;
-    }
+	/**
+	 *
+	 * @param capacity
+	 * @param receivedFrom the context from wich the capacity was received
+	 * @return the sum of the capacity table if there is no emitter to send the capacity, -1 else
+	 */
+	public State handleCapacity(Capacity capacity, Context receivedFrom) {
+		responseToWait -= 1;
+		capacityTable.put(receivedFrom, capacity.capacity());
 
-    var sum = capacitySum();
+		if(responseToWait > 0) {
+			state = State.WAITING_RESPONSE;
+			return state;
+		}
 
-    System.out.println("Everything was received");
-    System.out.println("sum = " + sum);
+		if(emitter != null) {
+			state = State.SENT_TO_EMITTER;
+			sendToEmitter(capacity, capacitySum());
+			return state;
+		}
 
-    if(emitter != null) {
-      System.out.println("Sending capacity to emitter");
-      sendToEmitter(capacity, sum);
-      return;
-    }
+		state = State.RECEIVED_SUM;
+		return state;
+	}
 
-    System.out.println("No emitter to send");
-  }
+	public HashMap<Context, Integer> getCapacityTable() {
+		if(state == State.WAITING_RESPONSE) {
+			throw new IllegalStateException("Shouldn't access to capacityTable if not received all capacity");
+		}
+		return capacityTable;
+	}
+	private void sendToEmitter(Capacity capacity, int sum) {
+		emitter.queueMessage(new Capacity(capacity.id(), sum + 1));
+	}
 
-  private void sendToEmitter(Capacity capacity, int sum) {
-    emitter.queueMessage(new Capacity(capacity.id(), sum + 1));
-  }
-
-  private int capacitySum() {
-    return capacityTable.values().stream()
-            .mapToInt(Integer::intValue)
-            .sum();
-  }
+	public int capacitySum() {
+		return capacityTable.values().stream()
+				.mapToInt(Integer::intValue)
+				.sum();
+	}
 }
