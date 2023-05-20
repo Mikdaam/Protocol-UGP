@@ -18,4 +18,9 @@ public record Result(TaskId id, String result) implements Packet {
     buffer.put(StandardCharsets.UTF_8.encode(result));
     return buffer;
   }
+
+  @Override
+  public byte type() {
+    return 0;
+  }
 }

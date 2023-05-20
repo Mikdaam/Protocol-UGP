@@ -16,6 +16,8 @@ public sealed interface Packet permits
         ResumeTask,
         Task,
         TaskAccepted,
-        TaskRefused {
+        TaskRefused
+{
     ByteBuffer encode();
+    byte type();
 }

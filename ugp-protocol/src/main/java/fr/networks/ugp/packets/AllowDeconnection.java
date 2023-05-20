@@ -7,4 +7,9 @@ public record AllowDeconnection() implements Packet {
   public ByteBuffer encode() {
     return ByteBuffer.allocate(0);
   }
+
+  @Override
+  public byte type() {
+    return 0;
+  }
 }

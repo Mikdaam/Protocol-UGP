@@ -19,4 +19,9 @@ public record NewParent(InetSocketAddress newParent) implements Packet {
 
     return buffer;
   }
+
+  @Override
+  public byte type() {
+    return 0;
+  }
 }

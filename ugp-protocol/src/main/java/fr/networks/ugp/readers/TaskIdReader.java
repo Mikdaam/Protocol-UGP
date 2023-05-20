@@ -63,7 +63,7 @@ public class TaskIdReader implements Reader<TaskId>{
 
     @Override
     public void reset() {
-        state = State.WAITING_ADDRESS;
+        state = State.WAITING_NUMBER;
         longReader.reset();
         socketAddressReader.reset();
     }

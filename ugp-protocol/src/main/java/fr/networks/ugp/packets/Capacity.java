@@ -17,4 +17,9 @@ public record Capacity(TaskId id, Integer capacity) implements Packet { // Capac
 
         return buffer;
     }
+
+    @Override
+    public byte type() {
+        return 2;
+    }
 }

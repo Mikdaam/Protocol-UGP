@@ -9,4 +9,9 @@ public record TaskAccepted(TaskId id) implements Packet {
     public ByteBuffer encode() {
         return id.encode();
     }
+
+    @Override
+    public byte type() {
+        return 0;
+    }
 }

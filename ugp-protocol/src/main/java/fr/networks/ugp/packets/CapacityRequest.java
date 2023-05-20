@@ -9,4 +9,9 @@ public record CapacityRequest(TaskId taskId) implements Packet{
     public ByteBuffer encode() {
         return taskId.encode();
     }
+
+    @Override
+    public byte type() {
+        return 1;
+    }
 }

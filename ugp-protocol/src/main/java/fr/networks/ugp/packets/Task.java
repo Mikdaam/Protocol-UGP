@@ -34,4 +34,9 @@ public record Task(TaskId id, URL url, String className, Range range) implements
 
         return buffer;
     }
+
+    @Override
+    public byte type() {
+        return 0;
+    }
 }

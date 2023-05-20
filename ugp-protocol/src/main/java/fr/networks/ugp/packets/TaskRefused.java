@@ -18,4 +18,9 @@ public record TaskRefused(TaskId id, Range range) implements Packet {
     buffer.put(rangeBuffer);
     return buffer;
   }
+
+  @Override
+  public byte type() {
+    return 0;
+  }
 }

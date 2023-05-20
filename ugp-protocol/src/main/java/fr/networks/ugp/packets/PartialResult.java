@@ -41,4 +41,9 @@ public record PartialResult(TaskId id, InetSocketAddress socketAddress, Range ra
         buffer.put(resultBuffer);
         return buffer;
     }
+
+    @Override
+    public byte type() {
+        return 0;
+    }
 }
