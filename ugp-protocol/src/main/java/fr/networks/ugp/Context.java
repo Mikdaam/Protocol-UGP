@@ -68,37 +68,12 @@ public class Context {
             case CancelTask cancelTask -> {
             }
             case Capacity capacity -> {
-                System.out.println("Received capacity response");
-                System.out.println("Received " + capacity);
-
-                boolean isOrigin = capacity.id().socketAddress().equals(application.serverAddress());
-                boolean allReceived = application.addNeighborCapacity(this, capacity);
-
-                System.out.println("isOrigin : " + isOrigin);
-                System.out.println("allReceived : " + allReceived);
-
-                if (!isOrigin && allReceived) {
-                    System.out.println("Send to emitter the sum of neighborsExceptMe and my capacity");
-                    var capacitySum = application.getNeighborsCapacities(capacity.id());
-                    application.sendToEmitter(capacity, capacitySum);
-                }
-
-                if(allReceived) {
-                    System.out.println("All response are received");
-                    System.out.println("Divide the tasks and assign tasks");
-                    return;
-                }
-
+                application.receivedCapacity(capacity, this);
             }
             case CapacityRequest capacityRequest -> {
-                System.out.println("Received capacity request");
-                System.out.println("Received: " + capacityRequest);
-
-                System.out.println("Nb of neighborsExceptMe : " + application.neighborsNumber());
                 if (application.hasNeighborsExceptEmitter()) {
                     System.out.println("Send to neighborsExceptMe");
-                    application.setEmitter(this);
-                    application.sendToNeighborsExceptOne(packet, this);
+                    application.sentCapacityRequest(capacityRequest, this);
                 } else {
                     System.out.println("Respond");
                     queueMessage(new Capacity(capacityRequest.taskId(), 1));

@@ -12,7 +12,6 @@ import fr.networks.ugp.utils.Helpers;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.URL;
 import java.nio.channels.*;
 import java.util.*;
@@ -32,13 +31,11 @@ public class Application {
     private final Thread console;
     private final Object lock = new Object();
 
-
     private final Queue<String> queue = new ArrayDeque<>();
     private final ArrayList<Context> children = new ArrayList<>();
-    private final HashMap<TaskId, HashMap<Context, Integer>> capacityTable = new HashMap<>(); // TODO: Changer peut etre en ID
+    private final HashMap<TaskId, CapacityHandler> capacityTable = new HashMap<>(); // TODO: Changer peut etre en ID
     private final HashMap<TaskId, Context> taskTable = new HashMap<>();
     private final HashMap<TaskId, Task> tasks = new HashMap<>();
-    private Context emitter = null;
     private long taskCounter = 0;
 
     public Application(InetSocketAddress serverAddress, int port) throws IOException {
@@ -98,6 +95,7 @@ public class Application {
                     var task = new Task(taskId, url, start.fullyQualifiedName(), range);
                     tasks.put(taskId, task);
                     taskCounter++;
+                    capacityTable.put(taskId, new CapacityHandler(null, neighborsNumber()));
 
                     broadcast(new CapacityRequest(taskId));
                 }
@@ -161,6 +159,12 @@ public class Application {
         }
     }
 
+    public void sentCapacityRequest(CapacityRequest packet, Context emitter) {
+        var capacityHandler = new CapacityHandler(emitter, neighborsNumber() - 1); // -2 because we remove the serverSocketChannel and the emitter
+        capacityTable.put(packet.taskId(), capacityHandler);
+        sendToNeighborsExceptOne(packet, emitter);
+    }
+
     public void sendToNeighborsExceptOne(Packet packet, Context exception) {
         selector.keys().stream()
                 .filter(selectionKey -> !(selectionKey.channel() instanceof ServerSocketChannel))
@@ -169,15 +173,10 @@ public class Application {
                 .forEach(context -> context.queueMessage(packet));
     }
 
-    public void sendToEmitter(Capacity capacity, int sum) {
-        emitter.queueMessage(new Capacity(capacity.id(), sum + 1));
+    public void receivedCapacity(Capacity capacity, Context context) {
+        var capacityHandler = capacityTable.get(capacity.id());
+        capacityHandler.handleCapacity(capacity, context);
     }
-
-    public void setEmitter(Context context) {
-        this.emitter = context;
-    }
-
-    public Context emitter() { return emitter; }
 
     public int neighborsNumber() {
         int keyCount = selector.keys().size();
@@ -186,20 +185,6 @@ public class Application {
 
     public boolean hasNeighborsExceptEmitter() {
         return neighborsNumber() - 1 >= 1;
-    }
-
-    public boolean addNeighborCapacity(Context context, Capacity capacity) {
-        var capacityTablePerId = capacityTable.computeIfAbsent(capacity.id(), k -> new HashMap<>());
-        capacityTablePerId.putIfAbsent(context, capacity.capacity());
-        System.out.println(capacityTable);
-        return capacityTablePerId.size() == neighborsNumber() - 1; // faux lorsqu'il ya une connexion entre temps
-    }
-
-    public int getNeighborsCapacities(TaskId id) {
-        var capacityTablePerId = capacityTable.get(id);
-        return capacityTablePerId.values().stream()
-                .mapToInt(Integer::intValue)
-                .sum();
     }
 
     public InetSocketAddress serverAddress() {
