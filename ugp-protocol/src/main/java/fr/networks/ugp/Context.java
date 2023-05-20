@@ -59,57 +59,20 @@ public class Context {
 
     private void processPacket(Packet packet) {
         switch (packet) {
-            case AllSent allSent -> {
-            }
-            case AllowDeconnection allowDeconnection -> {
-            }
-            case CancelTask cancelTask -> {
-            }
-            case Capacity capacity -> {
-                System.out.println("Received capacity response");
-                System.out.println("Received: " + capacity);
-                var allReceived = application.receiveCapacity(capacity, this);
-                if (allReceived) {
-                    application.distributeTask(capacity.id());
-                }
-            }
-            case CapacityRequest capacityRequest -> {
-                System.out.println("Received capacity request");
-                System.out.println("Received: " + capacityRequest);
-                // TODO : Refactor the this ...
-                if (application.hasNeighborsExceptEmitter()) {
-                    System.out.println("Send to neighborsExceptMe");
-                    application.sendCapacityRequest(capacityRequest, this);
-                } else {
-                    System.out.println("Respond");
-                    queueMessage(new Capacity(capacityRequest.taskId(), 1));
-                }
-            }
-            case LeavingNotification leavingNotification -> {
-            }
-            case NewParent newParent -> {
-            }
-            case NotifyChild notifyChild -> {
-            }
-            case PartialResult partialResult -> {
-            }
-            case Result result -> {
-            }
-            case ResumeTask resumeTask -> {
-            }
-            case Task task -> {
-                System.out.println("Received task request");
-                System.out.println("Received: " + task);
-                application.receiveTask(task);
-            }
-            case TaskAccepted taskAccepted -> {
-                System.out.println("Received task response[OK]");
-                System.out.println("Received: " + taskAccepted);
-            }
-            case TaskRefused taskRefused -> {
-                System.out.println("Received task response[KO]");
-                System.out.println("Received: " + taskRefused);
-            }
+            case AllSent allSent -> application.handleAllSent(this, allSent);
+            case AllowDeconnection allowDeconnection -> application.handleAllowDeconnection(this, allowDeconnection);
+            case CancelTask cancelTask -> application.handleCancelTask(this, cancelTask);
+            case Capacity capacity -> application.handleCapacity(this, capacity);
+            case CapacityRequest capacityRequest -> application.handleCapacityRequest(this, capacityRequest);
+            case LeavingNotification leavingNotification -> application.handleLeavingNotification(this, leavingNotification);
+            case NewParent newParent -> application.handleNewParent(this, newParent);
+            case NotifyChild notifyChild -> application.handleNotifyChild(this, notifyChild);
+            case PartialResult partialResult -> application.handlePartialResult(this, partialResult);
+            case Result result -> application.handleResult(this, result);
+            case ResumeTask resumeTask -> application.handleResumeTask(this, resumeTask);
+            case Task task -> application.handleTask(this, task);
+            case TaskAccepted taskAccepted -> application.handleTaskAccepted(this, taskAccepted);
+            case TaskRefused taskRefused -> application.handleTaskRefused(this, taskRefused);
         }
     }
 

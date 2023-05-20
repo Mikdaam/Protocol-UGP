@@ -2,10 +2,7 @@ package fr.networks.ugp;
 
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
-import fr.networks.ugp.packets.Capacity;
-import fr.networks.ugp.packets.CapacityRequest;
-import fr.networks.ugp.packets.Packet;
-import fr.networks.ugp.packets.Task;
+import fr.networks.ugp.packets.*;
 import fr.networks.ugp.utils.CommandParser;
 import fr.networks.ugp.utils.Helpers;
 
@@ -159,20 +156,35 @@ public class Application {
         }
     }
 
-    public void sendCapacityRequest(CapacityRequest packet, Context emitter) {
-        var capacityHandler = new CapacityHandler(emitter, neighborsNumber() - 1);
-        capacityTable.put(packet.taskId(), capacityHandler);
-        sendToNeighborsExceptOne(packet, emitter);
+    public void handleCapacityRequest(Context receiveFrom, CapacityRequest capacityRequest) {
+        System.out.println("Received capacity request");
+        System.out.println("Received: " + capacityRequest);
+        if (hasNeighborsExceptEmitter()) {
+            var capacityHandler = new CapacityHandler(receiveFrom, neighborsNumber() - 1);
+            capacityTable.put(capacityRequest.taskId(), capacityHandler);
+            sendToNeighborsExceptOne(receiveFrom, capacityRequest);
+        } else {
+            System.out.println("Respond");
+            receiveFrom.queueMessage(new Capacity(capacityRequest.taskId(), 1));
+        }
     }
 
-    public boolean receiveCapacity(Capacity capacity, Context context) {
+    public void handleCapacity(Context receiveFrom, Capacity capacity) {
+        System.out.println("Received capacity response");
+        System.out.println("Received: " + capacity);
+
         var capacityHandler = capacityTable.get(capacity.id());
-        var state = capacityHandler.handleCapacity(capacity, context);
+        var state = capacityHandler.handleCapacity(capacity, receiveFrom);
 
-        return state == CapacityHandler.State.RECEIVED_SUM;
+        if (state == CapacityHandler.State.RECEIVED_SUM) {
+            distributeTask(capacity.id());
+        }
     }
 
-    public void receiveTask(Task task) {
+    public void handleTask(Context receiveFrom, Task task) {
+        System.out.println("Received task request");
+        System.out.println("Received: " + task);
+
         var id = task.id();
         currentTasks.put(id, task);
 
@@ -185,6 +197,51 @@ public class Application {
             taskHandle.sendTaskRefused(task.range());
         }
     }
+
+    public void handleTaskAccepted(Context receiveFrom, TaskAccepted taskAccepted) {
+
+    }
+
+    public void handleTaskRefused(Context receiveFrom, TaskRefused taskRefused) {
+
+    }
+
+    public void handleResult(Context receiveFrom, Result result) {
+
+    }
+
+    public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
+
+    }
+
+    public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
+
+    }
+
+    public void handleCancelTask(Context receiveFrom, CancelTask cancelTask) {
+
+    }
+
+    public void handlePartialResult(Context receiveFrom, PartialResult partialResult) {
+
+    }
+
+    public void handleAllSent(Context receiveFrom, AllSent allSent) {
+
+    }
+
+    public void handleNewParent(Context receiveFrom, NewParent newParent) {
+
+    }
+
+    public void handleResumeTask(Context receiveFrom, ResumeTask resumeTask) {
+
+    }
+
+    public void handleAllowDeconnection(Context receiveFrom, AllowDeconnection allowDeconnection) {
+
+    }
+
 
     public void distributeTask(TaskId id) {
         var task = currentTasks.get(id);
@@ -228,29 +285,21 @@ public class Application {
         }
     }
 
-    public void sendToNeighborsExceptOne(Packet packet, Context exception) {
+    private void sendToNeighborsExceptOne(Context sendFrom, Packet packet) {
         selector.keys().stream()
                 .filter(selectionKey -> !(selectionKey.channel() instanceof ServerSocketChannel))
                 .map(selectionKey -> (Context) selectionKey.attachment())
-                .filter(context -> context != exception)
+                .filter(context -> context != sendFrom)
                 .forEach(context -> context.queueMessage(packet));
     }
 
-    public int neighborsNumber() {
+    private int neighborsNumber() {
         int keyCount = selector.keys().size();
         return keyCount - 1;
     }
 
-    public boolean hasNeighborsExceptEmitter() {
+    private boolean hasNeighborsExceptEmitter() {
         return neighborsNumber() - 1 >= 1;
-    }
-
-    public InetSocketAddress serverAddress() {
-        try {
-            return (InetSocketAddress) serverSocketChannel.getLocalAddress();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private void doAccept(SelectionKey key) throws IOException {
