@@ -34,6 +34,8 @@ public class Application {
     private final HashMap<TaskId, CapacityHandler> capacityTable = new HashMap<>();
     private final HashMap<TaskId, TaskHandler> taskTable = new HashMap<>();
     private final HashMap<TaskId, Task> currentTasks = new HashMap<>();
+    private DisconnectionHandler disconnectionHandler;
+    private Context parentContext;
     private long taskCounter = 0;
 
     public Application(InetSocketAddress serverAddress, int port) throws IOException {
@@ -48,7 +50,6 @@ public class Application {
             sc = null;
             this.serverAddress = null;
         }
-
         this.console = Thread.ofPlatform().unstarted(this::consoleRun);
     }
 
@@ -97,7 +98,7 @@ public class Application {
                     broadcast(new CapacityRequest(taskId));
                 }
                 case CommandParser.Disconnect disconnect -> {
-                    System.out.println();
+                    disconnectionHandler.startingDisconnection();
                 }
                 default -> throw new IllegalStateException("Unexpected value: " + command);
             }
@@ -111,10 +112,11 @@ public class Application {
         if(serverAddress != null) {
             sc.configureBlocking(false);
             var key = sc.register(selector, SelectionKey.OP_CONNECT);
-            key.attach(new Context(this, key));
+            parentContext = new Context(this, key);
+            key.attach(parentContext);
             sc.connect(serverAddress);
         }
-
+        disconnectionHandler = new DisconnectionHandler(parentContext, selector, capacityTable, taskTable); // TODO Change place this line
         console.start();
 
         while (!Thread.interrupted()) {
@@ -179,8 +181,7 @@ public class Application {
         if (state == CapacityHandler.State.RECEIVED_SUM) {
             var taskId = capacity.id();
             var taskHandler = new TaskHandler(currentTasks.get(taskId), capacityHandler, null);
-            var subTask = taskHandler.distributeTask();
-            //TODO launch the sub task ourself
+            taskHandler.distributeTask();
         }
     }
 
@@ -196,8 +197,7 @@ public class Application {
         if(true) { // if accepted
             taskTable.put(id, taskHandle);
             currentTasks.put(id, task);
-            var subTask = taskHandle.distributeTask();
-            //TODO launch the sub task ourself
+            taskHandle.distributeTask();
             taskHandle.sendTaskAccepted();
         } else {
             taskHandle.sendTaskRefused(task.range());
@@ -225,23 +225,23 @@ public class Application {
 
         capacityTable.remove(result.id());
         taskTable.remove(taskHandle);
-        taskCounter--;
         currentTasks.remove(result.id());
 
         if(state == TaskHandler.State.SENT_TO_EMITTER) {
             return;
         }
 
+        taskCounter--;
         var res = taskHandle.getResult();
-        //TODO write the res in the file
+        // TODO write the res in the file
     }
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
-
+        disconnectionHandler.wantToDisconnect(receiveFrom);
     }
 
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
-
+        disconnectionHandler.receivedNotifyChild();
     }
 
     public void handleCancelTask(Context receiveFrom, CancelTask cancelTask) {

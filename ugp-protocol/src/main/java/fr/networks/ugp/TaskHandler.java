@@ -2,11 +2,9 @@ package fr.networks.ugp;
 
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
-import fr.networks.ugp.packets.Result;
-import fr.networks.ugp.packets.Task;
-import fr.networks.ugp.packets.TaskAccepted;
-import fr.networks.ugp.packets.TaskRefused;
+import fr.networks.ugp.packets.*;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
@@ -16,10 +14,10 @@ public class TaskHandler {
     private final Context emitter;
     private int responseToWait;
     private final ArrayList<Context> destinations = new ArrayList<>();
-    private final Task task;
+    public final Task task;
     private final TaskId taskId;
     private final CapacityHandler capacityHandler;
-    private String stringResult = "";
+    private Result finalResult;
     private State state = State.WAITING_RESPONSE;
 
     public TaskHandler(Task task, CapacityHandler capacityHandler, Context emitter) {
@@ -33,11 +31,12 @@ public class TaskHandler {
         } else {
             this.responseToWait = capacityHandler.getCapacityTable().size() + 1;
         }
+        finalResult = new Result(taskId, "");
     }
 
-    public Task distributeTask() {
+    public void distributeTask() {
         if(capacityHandler == null) {
-            return task;
+            return;
         }
         long range = task.range().diff();
         var totalCapacity = capacityHandler.capacitySum() + 1;
@@ -71,7 +70,7 @@ public class TaskHandler {
 
         }
 
-        return subTask;
+        startTask(subTask);
     }
 
     public void addDestination(Context destination) {
@@ -98,12 +97,13 @@ public class TaskHandler {
             destinations.remove(resultEmitter);
         }
 
-        stringResult += result.result();
+        var oldResult = finalResult.result();
+        finalResult = new Result(taskId, oldResult + result.result());
 
         if(responseToWait == 0) {
             if(emitter != null) {
                 System.out.println("Sending result to emitter");
-                emitter.queueMessage(new Result(result.id(), stringResult));
+                emitter.queueMessage(finalResult);
                 state = State.SENT_TO_EMITTER;
             } else {
                 System.out.println("Received result and no emitter");
@@ -113,10 +113,27 @@ public class TaskHandler {
         return state;
     }
 
-    public String getResult() {
+    public Result getResult() {
         if(state != State.RECEIVED_RES) {
             throw new IllegalStateException("Can't access to res");
         }
-        return stringResult;
+        return finalResult;
+    }
+
+    public void startTask(Task subTask) {
+        //TODO start the subTask
+    }
+
+    public void stopTask(Context parent) {
+        if(emitter == null) { // if we started the conjecture
+            destinations.forEach(context -> context.queueMessage(new CancelTask(taskId)));
+        } else {
+            //TODO stop the task from the other thread and get the values of 'Stopped_At' and 'Résultat'
+            try {
+                parent.queueMessage(new PartialResult(taskId, emitter.getRemoteAddress(), task.range(), task.range().to(), finalResult));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

@@ -4,6 +4,8 @@ import fr.networks.ugp.packets.*;
 import fr.networks.ugp.readers.packets.PacketReader;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -181,4 +183,7 @@ public class Context {
         key.interestOps(SelectionKey.OP_WRITE);
     }
 
+    public InetSocketAddress getRemoteAddress() throws IOException {
+        return (InetSocketAddress) sc.getRemoteAddress();
+    }
 }
