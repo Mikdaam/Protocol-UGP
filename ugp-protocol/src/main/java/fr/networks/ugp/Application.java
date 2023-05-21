@@ -217,10 +217,22 @@ public class Application {
 
     public void handleResult(Context receiveFrom, Result result) {
         var taskHandle = taskTable.get(result.id());
-        var optionalRes = taskHandle.receivedResult(receiveFrom, result);
-        if(optionalRes.isEmpty()) {
+        var state = taskHandle.receivedResult(receiveFrom, result);
+
+        if(state == TaskHandler.State.WAITING_RESPONSE) {
             return;
         }
+
+        capacityTable.remove(result.id());
+        taskTable.remove(taskHandle);
+        taskCounter--;
+        currentTasks.remove(result.id());
+
+        if(state == TaskHandler.State.SENT_TO_EMITTER) {
+            return;
+        }
+
+        var res = taskHandle.getResult();
         //TODO write the res in the file
     }
 

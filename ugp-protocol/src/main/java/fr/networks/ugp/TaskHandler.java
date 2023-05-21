@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class TaskHandler {
+    public enum State { WAITING_RESPONSE, SENT_TO_EMITTER, RECEIVED_RES};
     private final Context emitter;
     private int responseToWait;
     private final ArrayList<Context> destinations = new ArrayList<>();
@@ -19,6 +20,7 @@ public class TaskHandler {
     private final TaskId taskId;
     private final CapacityHandler capacityHandler;
     private String stringResult = "";
+    private State state = State.WAITING_RESPONSE;
 
     public TaskHandler(Task task, CapacityHandler capacityHandler, Context emitter) {
         this.emitter = emitter;
@@ -90,7 +92,7 @@ public class TaskHandler {
         return new Task(task.id(), task.url(), task.className(), taskRefused.range());
     }
 
-    public Optional<String> receivedResult(Context resultEmitter, Result result) {
+    public State receivedResult(Context resultEmitter, Result result) {
         responseToWait--;
         if(resultEmitter != null) {
             destinations.remove(resultEmitter);
@@ -102,11 +104,19 @@ public class TaskHandler {
             if(emitter != null) {
                 System.out.println("Sending result to emitter");
                 emitter.queueMessage(new Result(result.id(), stringResult));
+                state = State.SENT_TO_EMITTER;
             } else {
                 System.out.println("Received result and no emitter");
-                return Optional.of(stringResult);
+                state = State.RECEIVED_RES;
             }
         }
-        return Optional.empty();
+        return state;
+    }
+
+    public String getResult() {
+        if(state != State.RECEIVED_RES) {
+            throw new IllegalStateException("Can't access to res");
+        }
+        return stringResult;
     }
 }
