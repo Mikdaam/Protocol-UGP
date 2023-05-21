@@ -34,10 +34,12 @@ public class CapacityHandler {
 
 		if(emitter != null) {
 			state = State.SENT_TO_EMITTER;
+			System.out.println("Sending capacity to emitter");
 			sendToEmitter(capacity, capacitySum());
 			return state;
 		}
 
+		System.out.println("Received capacity with no emitter");
 		state = State.RECEIVED_SUM;
 		return state;
 	}

@@ -177,21 +177,27 @@ public class Application {
         var state = capacityHandler.handleCapacity(capacity, receiveFrom);
 
         if (state == CapacityHandler.State.RECEIVED_SUM) {
-            distributeTask(capacity.id());
+            var taskId = capacity.id();
+            var taskHandler = new TaskHandler(currentTasks.get(taskId), capacityHandler, null);
+            var subTask = taskHandler.distributeTask();
+            //TODO launch the sub task ourself
         }
     }
 
-    public void handleTask(Context receiveFrom, Task task) {
+    public void handleTask(Context receivedFrom, Task task) {
         System.out.println("Received task request");
         System.out.println("Received: " + task);
 
         var id = task.id();
-        currentTasks.put(id, task);
 
         var capacityHandler = capacityTable.get(id);
-        var taskHandle = taskTable.get(id);
+        var taskHandle = new TaskHandler(task, capacityHandler, receivedFrom);
+
         if(capacityHandler != null) { // if accepted
-            distributeTask(id);
+            taskTable.put(id, taskHandle);
+            currentTasks.put(id, task);
+            var subTask = taskHandle.distributeTask();
+            //TODO launch the sub task ourself
             taskHandle.sendTaskAccepted();
         } else {
             taskHandle.sendTaskRefused(task.range());
@@ -240,49 +246,6 @@ public class Application {
 
     public void handleAllowDeconnection(Context receiveFrom, AllowDeconnection allowDeconnection) {
 
-    }
-
-
-    public void distributeTask(TaskId id) {
-        var task = currentTasks.get(id);
-        long range = task.range().diff();
-
-        var capacityHandler = capacityTable.get(task.id());
-        var totalCapacity = capacityHandler.capacitySum() + 1;
-
-        long unit = range / totalCapacity;
-
-        var from = task.range().from();
-        long start = from;
-        long limit = start + unit;
-
-        var subTask = new Task(id, task.url(), task.className(), new Range(start, limit));
-        System.out.println("Add task : " + subTask);
-        //TODO launch the sub task ourself
-
-        // Send the rest to neighbors
-        distributeTaskToNeighbors(task, from, limit, unit, capacityHandler);
-    }
-
-    private void distributeTaskToNeighbors(Task task, long from, long offset, long unit, CapacityHandler capacityHandler) {
-        long start = 0;
-        long limit = 0;
-        var capacityTable = capacityHandler.getCapacityTable();
-
-        var taskHandler = new TaskHandler(task.id(), null, capacityTable.size() + 1);
-
-        for (Map.Entry<Context, Integer> entry : capacityTable.entrySet()) {
-            start = from + offset;
-            var capacity = entry.getValue();
-            limit = start + unit * capacity;
-            offset = limit;
-
-            var subTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
-            System.out.println("Add task : " + subTask);
-            var context = entry.getKey();
-            context.queueMessage(subTask);
-            taskHandler.addDestination(context);
-        }
     }
 
     private void sendToNeighborsExceptOne(Context sendFrom, Packet packet) {
