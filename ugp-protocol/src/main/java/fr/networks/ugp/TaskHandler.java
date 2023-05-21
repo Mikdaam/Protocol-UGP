@@ -2,12 +2,14 @@ package fr.networks.ugp;
 
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
+import fr.networks.ugp.packets.Result;
 import fr.networks.ugp.packets.Task;
 import fr.networks.ugp.packets.TaskAccepted;
 import fr.networks.ugp.packets.TaskRefused;
 
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Optional;
 
 public class TaskHandler {
     private final Context emitter;
@@ -16,6 +18,7 @@ public class TaskHandler {
     private final Task task;
     private final TaskId taskId;
     private final CapacityHandler capacityHandler;
+    private String stringResult = "";
 
     public TaskHandler(Task task, CapacityHandler capacityHandler, Context emitter) {
         this.emitter = emitter;
@@ -85,5 +88,25 @@ public class TaskHandler {
     public Task taskRefused(Context refuser, TaskRefused taskRefused) {
         destinations.remove(refuser);
         return new Task(task.id(), task.url(), task.className(), taskRefused.range());
+    }
+
+    public Optional<String> receivedResult(Context resultEmitter, Result result) {
+        responseToWait--;
+        if(resultEmitter != null) {
+            destinations.remove(resultEmitter);
+        }
+
+        stringResult += result.result();
+
+        if(responseToWait == 0) {
+            if(emitter != null) {
+                System.out.println("Sending result to emitter");
+                emitter.queueMessage(new Result(result.id(), stringResult));
+            } else {
+                System.out.println("Received result and no emitter");
+                return Optional.of(stringResult);
+            }
+        }
+        return Optional.empty();
     }
 }

@@ -216,7 +216,12 @@ public class Application {
     }
 
     public void handleResult(Context receiveFrom, Result result) {
-
+        var taskHandle = taskTable.get(result.id());
+        var optionalRes = taskHandle.receivedResult(receiveFrom, result);
+        if(optionalRes.isEmpty()) {
+            return;
+        }
+        //TODO write the res in the file
     }
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
