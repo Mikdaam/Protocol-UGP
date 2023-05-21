@@ -193,7 +193,7 @@ public class Application {
         var capacityHandler = capacityTable.get(id);
         var taskHandle = new TaskHandler(task, capacityHandler, receivedFrom);
 
-        if(capacityHandler != null) { // if accepted
+        if(true) { // if accepted
             taskTable.put(id, taskHandle);
             currentTasks.put(id, task);
             var subTask = taskHandle.distributeTask();
@@ -205,11 +205,14 @@ public class Application {
     }
 
     public void handleTaskAccepted(Context receiveFrom, TaskAccepted taskAccepted) {
-
+        System.out.println(receiveFrom + " accepted the task " + taskAccepted.id());
     }
 
     public void handleTaskRefused(Context receiveFrom, TaskRefused taskRefused) {
-
+        System.out.println(receiveFrom + " refused the task " + taskRefused.id() + " with range : " + taskRefused.range());
+        var taskHandle = taskTable.get(taskRefused.id());
+        var subTask = taskHandle.taskRefused(receiveFrom, taskRefused);
+        // TODO launch the sub task ourself
     }
 
     public void handleResult(Context receiveFrom, Result result) {

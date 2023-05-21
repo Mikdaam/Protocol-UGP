@@ -81,4 +81,9 @@ public class TaskHandler {
     public void sendTaskRefused(Range range) {
         emitter.queueMessage(new TaskRefused(taskId, range));
     }
+
+    public Task taskRefused(Context refuser, TaskRefused taskRefused) {
+        destinations.remove(refuser);
+        return new Task(task.id(), task.url(), task.className(), taskRefused.range());
+    }
 }
