@@ -19,13 +19,21 @@ public class TaskHandler {
 
     public TaskHandler(Task task, CapacityHandler capacityHandler, Context emitter) {
         this.emitter = emitter;
-        this.responseToWait = capacityHandler.getCapacityTable().size() + 1;
         this.task = task;
         this.taskId = task.id();
         this.capacityHandler = capacityHandler;
+        if(capacityHandler == null) {
+            this.responseToWait = 1;
+
+        } else {
+            this.responseToWait = capacityHandler.getCapacityTable().size() + 1;
+        }
     }
 
     public Task distributeTask() {
+        if(capacityHandler == null) {
+            return task;
+        }
         long range = task.range().diff();
         var totalCapacity = capacityHandler.capacitySum() + 1;
 
@@ -34,12 +42,12 @@ public class TaskHandler {
         var from = task.range().from();
         long start = from;
         long limit = start + unit;
-        long offset = 0;
 
+        var subTask = new Task(taskId, task.url(), task.className(), new Range(start, limit));
+        System.out.println("Add task : " + subTask);
 
         // Send the rest to neighbors
         var capacityTable = capacityHandler.getCapacityTable();
-
 
         for (Map.Entry<Context, Integer> entry : capacityTable.entrySet()) {
             var context = entry.getKey();
@@ -47,19 +55,16 @@ public class TaskHandler {
                 continue;
             }
 
-            var subTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
-            System.out.println("Add task : " + subTask);
-            context.queueMessage(subTask);
-            addDestination(context);
-
-            offset = limit;
-            start = from + offset;
+            start = limit;
             var capacity = entry.getValue();
             limit = start + unit * capacity;
-        }
 
-        var subTask = new Task(taskId, task.url(), task.className(), new Range(start, limit));
-        System.out.println("Add task : " + subTask);
+            var neighborTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
+            System.out.println("Add task : " + neighborTask);
+            context.queueMessage(neighborTask);
+            addDestination(context);
+
+        }
 
         return subTask;
     }

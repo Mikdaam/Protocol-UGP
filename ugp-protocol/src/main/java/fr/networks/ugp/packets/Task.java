@@ -17,8 +17,6 @@ public record Task(TaskId id, URL url, String className, Range range) implements
 
         taskIdBuffer.flip();
         rangeBuffer.flip();
-        urlBuffer.flip();
-        classNameBuffer.flip();
 
         var buffer = ByteBuffer.allocate(taskIdBuffer.remaining()
                 + Integer.BYTES + urlBuffer.remaining()
