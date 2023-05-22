@@ -3,6 +3,7 @@ package fr.networks.ugp;
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.*;
+import fr.networks.ugp.utils.Client;
 import fr.networks.ugp.utils.CommandParser;
 import fr.networks.ugp.utils.Helpers;
 
@@ -12,6 +13,8 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.channels.*;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,7 +32,9 @@ public class Application {
     private final Object lock = new Object();
 
 
-    private final Queue<String> queue = new ArrayDeque<>();
+    private final BlockingQueue<String> commandQueue = new ArrayBlockingQueue<>(10);
+    private final BlockingQueue<Task> tasksQueue = new ArrayBlockingQueue<>(10);
+    private final BlockingQueue<Result> resultsQueue = new ArrayBlockingQueue<>(10);
     private final ArrayList<Context> children = new ArrayList<>();
     private final HashMap<TaskId, CapacityHandler> capacityTable = new HashMap<>();
     private final HashMap<TaskId, TaskHandler> taskTable = new HashMap<>();
@@ -68,16 +73,36 @@ public class Application {
         }
     }
 
+    private void launchTaskInBackground() {
+        Thread.ofPlatform().start(() -> {
+            var curTask = tasksQueue.poll();
+            var checker = Client.checkerFromHTTP(curTask.url().toString(), curTask.className()).orElseThrow();
+            var resultString = new StringBuilder();
+
+            for (long i = curTask.range().from(); i < curTask.range().to(); i++) {
+                try {
+                    resultString.append(checker.check(i));
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+
+            var result = new Result(curTask.id(), resultString.toString());
+            resultsQueue.add(result);
+            selector.wakeup();
+        });
+    }
+
     private void sendCommand(String command) throws InterruptedException {
         synchronized (lock) {
-            queue.add(command);
+            commandQueue.add(command);
             selector.wakeup();
         }
     }
 
     private void processCommands() throws IOException {
         synchronized (lock) {
-            var msg = queue.poll();
+            var msg = commandQueue.poll();
             if(msg == null) {
                 return;
             }
@@ -194,7 +219,7 @@ public class Application {
         var capacityHandler = capacityTable.get(id);
         var taskHandle = new TaskHandler(task, capacityHandler, receivedFrom);
 
-        if(true) { // if accepted
+        if(true) { //TODO: if accepted
             taskTable.put(id, taskHandle);
             currentTasks.put(id, task);
             taskHandle.distributeTask();
