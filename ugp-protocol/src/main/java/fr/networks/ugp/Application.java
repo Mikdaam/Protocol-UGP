@@ -183,6 +183,33 @@ public class Application {
         }
     }
 
+    private void distributeTask(Task task, HashMap<Context, Integer> taskCapacityTable, int totalCapacity) {
+        // TODO: Should send to destinataires instead of capacity table context.
+        long range = task.range().diff();
+        long unit = range / totalCapacity;
+        long start = task.range().from();
+        long limit = start + unit;
+
+        var subTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
+        System.out.println("Add task[our part task] : " + subTask);
+        // TODO: Launch our task
+
+        // Send the rest to destinations
+        for (var entry : taskCapacityTable.entrySet()) {
+            /*if(emitter != null && emitter == context) {
+                continue;
+            }*/
+            start = limit;
+            var capacity = entry.getValue();
+            limit = start + unit * capacity;
+
+            var neighborTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
+            System.out.println("Add task : " + neighborTask);
+            var destination = entry.getKey();
+            destination.queueMessage(neighborTask);
+        }
+    }
+
     public void handleCapacityRequest(Context receiveFrom, CapacityRequest capacityRequest) {
         System.out.println("Received capacity request");
         System.out.println("Received: " + capacityRequest);
@@ -200,65 +227,93 @@ public class Application {
         System.out.println("Received capacity response");
         System.out.println("Received: " + capacity);
 
-        var capacityHandler = capacityTable.get(capacity.id());
+        var id = capacity.id();
+        var capacityHandler = capacityTable.get(id);
         var state = capacityHandler.handleCapacity(capacity, receiveFrom);
 
-        if (state == CapacityHandler.State.RECEIVED_SUM) {
-            var taskId = capacity.id();
-            var taskHandler = new TaskHandler(currentTasks.get(taskId), capacityHandler, null);
-            taskHandler.distributeTask();
+        if (state == CapacityHandler.State.RECEIVED_ALL) {
+            System.out.println("Receive all capacity.");
+            System.out.println("Launch the task");
+            var task = currentTasks.get(id);
+            var taskCapacityTable = capacityHandler.getTaskCapacityTable();
+            int totalCapacity = capacityHandler.capacitySum();
+
+            var taskHandler = new TaskHandler(task, taskCapacityTable.size(), null);
+            taskTable.put(id, taskHandler);
+
+            distributeTask(task, taskCapacityTable, totalCapacity);
         }
     }
 
     public void handleTask(Context receivedFrom, Task task) {
         System.out.println("Received task request");
         System.out.println("Received: " + task);
-
         var id = task.id();
 
-        var capacityHandler = capacityTable.get(id);
-        var taskHandle = new TaskHandler(task, capacityHandler, receivedFrom);
-
         if(true) { //TODO: if accepted
-            taskTable.put(id, taskHandle);
+            var capacityHandler = capacityTable.get(id);
+            var taskCapacityTable = capacityHandler.getTaskCapacityTable();
+            int totalCapacity = capacityHandler.capacitySum();
+            int res = taskCapacityTable != null ? taskCapacityTable.size() : 1;
+
+            var taskHandler = new TaskHandler(task, res, receivedFrom);
+
+            receivedFrom.queueMessage(new TaskAccepted(id)); // Send task accepted
+
             currentTasks.put(id, task);
-            taskHandle.distributeTask();
-            taskHandle.sendTaskAccepted();
+            taskTable.put(id, taskHandler);
+
+            if(taskCapacityTable == null) {
+                // TODO: there is no neighbors, launch the task
+                return;
+            } else {
+                distributeTask(task, taskCapacityTable, totalCapacity);
+            }
         } else {
-            taskHandle.sendTaskRefused(task.range());
+            receivedFrom.queueMessage(new TaskRefused(id, task.range())); // Send task refused
         }
     }
 
     public void handleTaskAccepted(Context receiveFrom, TaskAccepted taskAccepted) {
         System.out.println(receiveFrom + " accepted the task " + taskAccepted.id());
+        var taskHandle = taskTable.get(taskAccepted.id());
+        taskHandle.addTaskDestination(receiveFrom);
     }
 
     public void handleTaskRefused(Context receiveFrom, TaskRefused taskRefused) {
         System.out.println(receiveFrom + " refused the task " + taskRefused.id() + " with range : " + taskRefused.range());
-        var taskHandle = taskTable.get(taskRefused.id());
-        var subTask = taskHandle.taskRefused(receiveFrom, taskRefused);
+        var refusedTask = currentTasks.get(taskRefused.id());
         // TODO launch the sub task ourself
     }
 
     public void handleResult(Context receiveFrom, Result result) {
-        var taskHandle = taskTable.get(result.id());
-        var state = taskHandle.receivedResult(receiveFrom, result);
+        System.out.println("Received a task result");
+        System.out.println("Received: " + result);
 
-        if(state == TaskHandler.State.WAITING_RESPONSE) {
+        var taskHandler = taskTable.get(result.id());
+        var state = taskHandler.receivedTaskResult(receiveFrom, result);
+
+        if(state == TaskHandler.State.WAITING_RESULT) {
             return;
         }
 
+        if (state == TaskHandler.State.SENT_TO_EMITTER) {
+            var emitter = taskHandler.emitter();
+            var taskResult = taskHandler.taskResult();
+
+            System.out.println("Sending result to emitter");
+            emitter.queueMessage(taskResult);
+        }
+
+        // Free resource
         capacityTable.remove(result.id());
-        taskTable.remove(taskHandle);
+        taskTable.remove(result.id());
         currentTasks.remove(result.id());
 
-        if(state == TaskHandler.State.SENT_TO_EMITTER) {
-            return;
+        if (state == TaskHandler.State.RECEIVED_ALL_RESULT) {
+            var res = taskHandler.taskResult();
+            // TODO write the res in the file
         }
-
-        taskCounter--;
-        var res = taskHandle.getResult();
-        // TODO write the res in the file
     }
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {

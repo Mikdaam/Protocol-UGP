@@ -5,9 +5,9 @@ import fr.networks.ugp.packets.Capacity;
 import java.util.HashMap;
 
 public class CapacityHandler {
-	public static enum State { WAITING_RESPONSE, SENT_TO_EMITTER, RECEIVED_SUM };
+	public enum State { WAITING_RESPONSE, SENT_TO_EMITTER, RECEIVED_ALL};
 
-	private final HashMap<Context, Integer> capacityTable = new HashMap<>();
+	private final HashMap<Context, Integer> taskCapacityTable = new HashMap<>();
 	private final Context emitter;
 	private int responseToWait;
 	private State state = State.WAITING_RESPONSE;
@@ -25,7 +25,7 @@ public class CapacityHandler {
 	 */
 	public State handleCapacity(Capacity capacity, Context receivedFrom) {
 		responseToWait -= 1;
-		capacityTable.put(receivedFrom, capacity.capacity());
+		taskCapacityTable.put(receivedFrom, capacity.capacity());
 
 		if(responseToWait > 0) {
 			state = State.WAITING_RESPONSE;
@@ -40,22 +40,22 @@ public class CapacityHandler {
 		}
 
 		System.out.println("Received capacity with no emitter");
-		state = State.RECEIVED_SUM;
+		state = State.RECEIVED_ALL;
 		return state;
 	}
 
-	public HashMap<Context, Integer> getCapacityTable() {
+	public HashMap<Context, Integer> getTaskCapacityTable() {
 		if(state == State.WAITING_RESPONSE) {
-			throw new IllegalStateException("Shouldn't access to capacityTable if not received all capacity");
+			throw new IllegalStateException("Shouldn't access to taskCapacityTable if not received all capacity");
 		}
-		return capacityTable;
+		return taskCapacityTable;
 	}
 	private void sendToEmitter(Capacity capacity, int sum) {
 		emitter.queueMessage(new Capacity(capacity.id(), sum + 1));
 	}
 
 	public int capacitySum() {
-		return capacityTable.values().stream()
+		return taskCapacityTable.values().stream()
 				.mapToInt(Integer::intValue)
 				.sum();
 	}

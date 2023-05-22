@@ -4,122 +4,64 @@ import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.*;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class TaskHandler {
-    public enum State { WAITING_RESPONSE, SENT_TO_EMITTER, RECEIVED_RES};
+    public enum State {WAITING_RESULT, SENT_TO_EMITTER, RECEIVED_ALL_RESULT};
     private final Context emitter;
-    private int responseToWait;
+    private int resultToWait;
     private final ArrayList<Context> destinations = new ArrayList<>();
     public final Task task;
     private final TaskId taskId;
-    private final CapacityHandler capacityHandler;
-    private Result finalResult;
-    private State state = State.WAITING_RESPONSE;
+    private Result taskResult;
+    private State state = State.WAITING_RESULT;
 
-    public TaskHandler(Task task, CapacityHandler capacityHandler, Context emitter) {
+    public TaskHandler(Task task, int resultToWait, Context emitter) {
         this.emitter = emitter;
         this.task = task;
         this.taskId = task.id();
-        this.capacityHandler = capacityHandler;
-        if(capacityHandler == null) {
-            this.responseToWait = 1;
-
-        } else {
-            this.responseToWait = capacityHandler.getCapacityTable().size() + 1;
-        }
-        finalResult = new Result(taskId, "");
+        this.resultToWait = resultToWait + 1;
     }
 
-    public void distributeTask() {
-        if(capacityHandler == null) {
-            return;
-        }
-        long range = task.range().diff();
-        var totalCapacity = capacityHandler.capacitySum() + 1;
-
-        long unit = range / totalCapacity;
-
-        long start = task.range().from();
-        long limit = start + unit;
-
-        var subTask = new Task(taskId, task.url(), task.className(), new Range(start, limit));
-        System.out.println("Add task : " + subTask);
-
-        // Send the rest to neighbors
-        var capacityTable = capacityHandler.getCapacityTable();
-
-        for (Map.Entry<Context, Integer> entry : capacityTable.entrySet()) {
-            var context = entry.getKey();
-            if(emitter != null && emitter == context) {
-                continue;
-            }
-
-            start = limit;
-            var capacity = entry.getValue();
-            limit = start + unit * capacity;
-
-            var neighborTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
-            System.out.println("Add task : " + neighborTask);
-            context.queueMessage(neighborTask);
-            addDestination(context);
-
-        }
-
-        startTask(subTask);
-    }
-
-    public void addDestination(Context destination) {
-        System.out.println("Destination : " + destination);
+    public void addTaskDestination(Context destination) {
+        System.out.println("Add a new destination : " + destination);
         destinations.add(destination);
     }
 
-    public void sendTaskAccepted() {
-        emitter.queueMessage(new TaskAccepted(taskId));
-    }
-
-    public void sendTaskRefused(Range range) {
-        emitter.queueMessage(new TaskRefused(taskId, range));
-    }
-
-    public Task taskRefused(Context refuser, TaskRefused taskRefused) {
-        destinations.remove(refuser);
-        return new Task(task.id(), task.url(), task.className(), taskRefused.range());
-    }
-
-    public State receivedResult(Context resultEmitter, Result result) {
-        responseToWait--;
+    public State receivedTaskResult(Context resultEmitter, Result result) {
+        resultToWait--;
         if(resultEmitter != null) {
             destinations.remove(resultEmitter);
         }
 
-        var oldResult = finalResult.result();
-        finalResult = new Result(taskId, oldResult + result.result());
+        var oldResult = taskResult.result();
+        taskResult = new Result(taskId, oldResult + result.result());
 
-        if(responseToWait == 0) {
+        if(resultToWait == 0) {
             if(emitter != null) {
-                System.out.println("Sending result to emitter");
-                emitter.queueMessage(finalResult);
                 state = State.SENT_TO_EMITTER;
             } else {
-                System.out.println("Received result and no emitter");
-                state = State.RECEIVED_RES;
+                state = State.RECEIVED_ALL_RESULT;
             }
         }
         return state;
     }
 
-    public Result getResult() {
-        if(state != State.RECEIVED_RES) {
-            throw new IllegalStateException("Can't access to res");
-        }
-        return finalResult;
+    public Context emitter() {
+        return emitter;
     }
 
-    public void startTask(Task subTask) {
+    public Result taskResult() {
+        if(state != State.RECEIVED_ALL_RESULT) {
+            throw new IllegalStateException("Can't access to res");
+        }
+        return taskResult;
+    }
+
+    /*public void startTask(Task subTask) {
         //TODO start the subTask
     }
 
@@ -134,5 +76,5 @@ public class TaskHandler {
                 throw new RuntimeException(e);
             }
         }
-    }
+    }*/
 }
