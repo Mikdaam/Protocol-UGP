@@ -72,6 +72,7 @@ public class Context {
             case PartialResult partialResult -> application.handlePartialResult(this, partialResult);
             case Result result -> application.handleResult(this, result);
             case ResumeTask resumeTask -> application.handleResumeTask(this, resumeTask);
+            case Reconnect reconnect -> {}
             case Task task -> application.handleTask(this, task);
             case TaskAccepted taskAccepted -> application.handleTaskAccepted(this, taskAccepted);
             case TaskRefused taskRefused -> application.handleTaskRefused(this, taskRefused);
