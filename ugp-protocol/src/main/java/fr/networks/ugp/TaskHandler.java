@@ -43,8 +43,7 @@ public class TaskHandler {
 
         long unit = range / totalCapacity;
 
-        var from = task.range().from();
-        long start = from;
+        long start = task.range().from();
         long limit = start + unit;
 
         var subTask = new Task(taskId, task.url(), task.className(), new Range(start, limit));

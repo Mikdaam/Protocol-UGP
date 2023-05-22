@@ -1,12 +1,16 @@
-package fr.networks.ugp.readers;
+package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.data.TaskId;
+import fr.networks.ugp.packets.Packet;
+import fr.networks.ugp.packets.Reconnect;
+import fr.networks.ugp.readers.Reader;
+import fr.networks.ugp.readers.TaskIdReader;
 import fr.networks.ugp.readers.base.IntReader;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
-public class TaskIdListReader implements Reader<ArrayList<TaskId>> {
+public class ReconnectReader implements Reader<Packet> {
     private enum State {
         DONE, WAITING_NUMBER, WAITING_IDS, ERROR
     }
@@ -14,6 +18,7 @@ public class TaskIdListReader implements Reader<ArrayList<TaskId>> {
     private State state = State.WAITING_NUMBER;
     private final TaskIdReader taskIdReader = new TaskIdReader();
     private final IntReader intReader = new IntReader();
+    private Reconnect reconnect;
     private ArrayList<TaskId> taskIdList;
     private int nbOfIds;
     @Override
@@ -45,6 +50,7 @@ public class TaskIdListReader implements Reader<ArrayList<TaskId>> {
                 taskIdList.add(taskIdReader.get());
                 taskIdReader.reset();
                 if (taskIdList.size() == nbOfIds) {
+                    reconnect = new Reconnect(taskIdList);
                     state = State.DONE;
                     return ProcessStatus.DONE;
                 }
@@ -55,11 +61,11 @@ public class TaskIdListReader implements Reader<ArrayList<TaskId>> {
     }
 
     @Override
-    public ArrayList<TaskId> get() {
+    public Reconnect get() {
         if (state != State.DONE) {
             throw new IllegalStateException();
         }
-        return taskIdList;
+        return reconnect;
     }
 
     @Override
