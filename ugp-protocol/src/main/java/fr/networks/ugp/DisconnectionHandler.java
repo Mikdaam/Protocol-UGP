@@ -42,13 +42,13 @@ public class DisconnectionHandler {
     wantingToDisconnect.queueMessage(new NotifyChild());
   }
 
-  public void receivedNotifyChild() {
+  /*public void receivedNotifyChild() {
     taskTable.forEach((taskId, taskHandler) -> {
       taskHandler.stopTask(parent);
     });
     parent.queueMessage(new AllSent());
     state = State.WAITING_TO_DISCONNECT;
-  }
+  }*/
 
   // TODO when we receive allow deconnexion, w<e have to send notify child to all childs waiting
 }

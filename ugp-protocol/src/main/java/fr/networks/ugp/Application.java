@@ -39,7 +39,7 @@ public class Application {
     private final HashMap<TaskId, CapacityHandler> capacityTable = new HashMap<>();
     private final HashMap<TaskId, TaskHandler> taskTable = new HashMap<>();
     private final HashMap<TaskId, Task> currentTasks = new HashMap<>();
-    private DisconnectionHandler disconnectionHandler;
+    private boolean cantSend;
     private Context parentContext;
     private long taskCounter = 0;
 
@@ -74,11 +74,15 @@ public class Application {
     }
 
     private void launchTaskInBackground() {
-        Thread.ofPlatform().start(() -> {
+        synchronized (lock) {
+            System.out.println("Beginning launch the task");
             var curTask = tasksQueue.poll();
+            System.out.println("Start downloading...");
             var checker = Client.checkerFromHTTP(curTask.url().toString(), curTask.className()).orElseThrow();
+            System.out.println("Checker downloaded");
             var resultString = new StringBuilder();
 
+            System.out.println("Launch the task");
             for (long i = curTask.range().from(); i < curTask.range().to(); i++) {
                 try {
                     resultString.append(checker.check(i));
@@ -86,11 +90,40 @@ public class Application {
                     throw new AssertionError(e);
                 }
             }
+            System.out.println("Finish the task");
 
             var result = new Result(curTask.id(), resultString.toString());
             resultsQueue.add(result);
+            System.out.println("Wakeup selector");
             selector.wakeup();
-        });
+        }
+    }
+
+    private void processResult() {
+        synchronized (lock) {
+            var result = resultsQueue.poll();
+            if (result == null) {
+                return;
+            }
+
+            var taskId = result.id();
+            var taskHandler = taskTable.get(taskId);
+            var emitter = taskHandler.emitter();
+
+            // TODO: Write to file
+            if (emitter == null) {
+                System.out.println("Result of task : " + result);
+            } else {
+                System.out.println("Send to emitter");
+                emitter.queueMessage(result);
+            }
+
+            if (taskHandler.receivedTaskResult(null)) {
+                System.out.println("Free resources");
+                capacityTable.remove(taskId);
+                taskTable.remove(taskId);
+            }
+        }
     }
 
     private void sendCommand(String command) throws InterruptedException {
@@ -123,7 +156,7 @@ public class Application {
                     broadcast(new CapacityRequest(taskId));
                 }
                 case CommandParser.Disconnect disconnect -> {
-                    disconnectionHandler.startingDisconnection();
+                    //disconnectionHandler.startingDisconnection();
                 }
                 default -> throw new IllegalStateException("Unexpected value: " + command);
             }
@@ -135,13 +168,9 @@ public class Application {
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
         if(serverAddress != null) {
-            sc.configureBlocking(false);
-            var key = sc.register(selector, SelectionKey.OP_CONNECT);
-            parentContext = new Context(this, key);
-            key.attach(parentContext);
-            sc.connect(serverAddress);
+            connectToParent(serverAddress);
         }
-        disconnectionHandler = new DisconnectionHandler(parentContext, selector, capacityTable, taskTable); // TODO Change place this line
+        //disconnectionHandler = new DisconnectionHandler(parentContext, selector, capacityTable, taskTable); // TODO Change place this line
         console.start();
 
         while (!Thread.interrupted()) {
@@ -150,11 +179,20 @@ public class Application {
             try {
                 selector.select(this::treatKey);
                 processCommands();
+                processResult();
             } catch (UncheckedIOException tunneled) {
                 throw tunneled.getCause();
             }
             System.out.println("Select finished");
         }
+    }
+
+    private void connectToParent(InetSocketAddress address) throws IOException {
+        sc.configureBlocking(false);
+        var key = sc.register(selector, SelectionKey.OP_CONNECT);
+        parentContext = new Context(this, key);
+        key.attach(parentContext);
+        sc.connect(address);
     }
 
     private void treatKey(SelectionKey key) {
@@ -193,6 +231,8 @@ public class Application {
         var subTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
         System.out.println("Add task[our part task] : " + subTask);
         // TODO: Launch our task
+        tasksQueue.add(subTask);
+        Thread.ofPlatform().start(this::launchTaskInBackground);
 
         // Send the rest to destinations
         for (var entry : taskCapacityTable.entrySet()) {
@@ -204,7 +244,7 @@ public class Application {
             limit = start + unit * capacity;
 
             var neighborTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
-            System.out.println("Add task : " + neighborTask);
+            System.out.println("Task sent to neighbor : " + neighborTask);
             var destination = entry.getKey();
             destination.queueMessage(neighborTask);
         }
@@ -232,47 +272,79 @@ public class Application {
         var state = capacityHandler.handleCapacity(capacity, receiveFrom);
 
         if (state == CapacityHandler.State.RECEIVED_ALL) {
-            System.out.println("Receive all capacity.");
-            System.out.println("Launch the task");
-            var task = currentTasks.get(id);
-            var taskCapacityTable = capacityHandler.getTaskCapacityTable();
-            int totalCapacity = capacityHandler.capacitySum();
-
-            var taskHandler = new TaskHandler(task, taskCapacityTable.size(), null);
-            taskTable.put(id, taskHandler);
-
-            distributeTask(task, taskCapacityTable, totalCapacity);
+            handleReceivedAllCapacity(id, capacityHandler);
         }
     }
+
+    private void handleReceivedAllCapacity(TaskId id, CapacityHandler capacityHandler) {
+        System.out.println("Received all capacity.");
+        System.out.println("Launch the task");
+
+        var task = currentTasks.get(id);
+        var taskCapacityTable = capacityHandler.getTaskCapacityTable();
+        int totalCapacity = capacityHandler.capacitySum() + 1;
+
+        // TODO: [2] Mettre le bon compteur
+        var taskHandler = new TaskHandler(task, totalCapacity, null);
+        taskTable.put(id, taskHandler);
+
+        distributeTask(task, taskCapacityTable, totalCapacity);
+    }
+
 
     public void handleTask(Context receivedFrom, Task task) {
         System.out.println("Received task request");
         System.out.println("Received: " + task);
         var id = task.id();
 
-        if(true) { //TODO: if accepted
-            var capacityHandler = capacityTable.get(id);
-            var taskCapacityTable = capacityHandler.getTaskCapacityTable();
-            int totalCapacity = capacityHandler.capacitySum();
-            int res = taskCapacityTable != null ? taskCapacityTable.size() : 1;
-
-            var taskHandler = new TaskHandler(task, res, receivedFrom);
-
-            receivedFrom.queueMessage(new TaskAccepted(id)); // Send task accepted
-
-            currentTasks.put(id, task);
-            taskTable.put(id, taskHandler);
-
-            if(taskCapacityTable == null) {
-                // TODO: there is no neighbors, launch the task
-                return;
-            } else {
-                distributeTask(task, taskCapacityTable, totalCapacity);
-            }
+        if (isTaskAccepted()) {
+            handleAcceptedTask(receivedFrom, task, id);
         } else {
-            receivedFrom.queueMessage(new TaskRefused(id, task.range())); // Send task refused
+            handleRefusedTask(receivedFrom, task, id);
         }
     }
+
+    private boolean isTaskAccepted() {
+        // TODO: Implement the logic to determine if the task is accepted
+        return true; // Placeholder value, replace with actual implementation
+    }
+
+    private void handleAcceptedTask(Context receivedFrom, Task task, TaskId id) {
+        System.out.println("Let the parent know that we accepted");
+        receivedFrom.queueMessage(new TaskAccepted(id)); // Send task accepted
+
+        var capacityHandler = capacityTable.get(id);
+
+        if (capacityHandler == null) {
+            handleNoNeighbors(task, id, receivedFrom);
+        } else {
+            handleWithNeighbors(task, id, receivedFrom, capacityHandler);
+        }
+    }
+
+    private void handleNoNeighbors(Task task, TaskId id, Context receivedFrom) {
+        var taskHandler = new TaskHandler(task, 0, receivedFrom);
+        taskTable.put(id, taskHandler);
+        System.out.println("No neighbors, launch the task ourselves");
+        tasksQueue.add(task);
+        Thread.ofPlatform().start(this::launchTaskInBackground);
+    }
+
+    private void handleWithNeighbors(Task task, TaskId id, Context receivedFrom, CapacityHandler capacityHandler) {
+        var taskCapacityTable = capacityHandler.getTaskCapacityTable();
+        int totalCapacity = capacityHandler.capacitySum();
+        // TODO: [2] here to
+        TaskHandler taskHandler = new TaskHandler(task, totalCapacity, receivedFrom);
+        taskTable.put(id, taskHandler);
+
+        currentTasks.put(id, task);
+        distributeTask(task, taskCapacityTable, totalCapacity);
+    }
+
+    private void handleRefusedTask(Context receivedFrom, Task task, TaskId id) {
+        receivedFrom.queueMessage(new TaskRefused(id, task.range())); // Send task refused
+    }
+
 
     public void handleTaskAccepted(Context receiveFrom, TaskAccepted taskAccepted) {
         System.out.println(receiveFrom + " accepted the task " + taskAccepted.id());
@@ -291,41 +363,74 @@ public class Application {
         System.out.println("Received: " + result);
 
         var taskHandler = taskTable.get(result.id());
-        var state = taskHandler.receivedTaskResult(receiveFrom, result);
 
-        if(state == TaskHandler.State.WAITING_RESULT) {
+        /*if (cantSend) {
+            taskHandler.storeResult(result);
             return;
+        }*/
+
+        if (taskHandler.emitter() == null) {
+            var res = taskHandler.taskResult();
+            // TODO write the res in the file
+        } else {
+            taskHandler.emitter().queueMessage(result);
         }
 
-        if (state == TaskHandler.State.SENT_TO_EMITTER) {
-            var emitter = taskHandler.emitter();
-            var taskResult = taskHandler.taskResult();
-
-            System.out.println("Sending result to emitter");
-            emitter.queueMessage(taskResult);
-        }
+        if(!taskHandler.receivedTaskResult(receiveFrom)) {
+            // Attend 2 result et il en recoit 3
+            return;
+        };
 
         // Free resource
         capacityTable.remove(result.id());
         taskTable.remove(result.id());
         currentTasks.remove(result.id());
-
-        if (state == TaskHandler.State.RECEIVED_ALL_RESULT) {
-            var res = taskHandler.taskResult();
-            // TODO write the res in the file
-        }
     }
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
-        disconnectionHandler.wantToDisconnect(receiveFrom);
+        // disconnectionHandler.wantToDisconnect(receiveFrom);
+        receiveFrom.queueMessage(new NotifyChild());
     }
 
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
-        disconnectionHandler.receivedNotifyChild();
+        // disconnectionHandler.receivedNotifyChild();
+        cancelMyTasks();
+
+        // TODO: Stop all the current task
+        // TODO: get the partial result of task and send it to parent [PARTIAL_RESULT & ALL_SENT]
+
+        // Then send "NEW_PARENT" to children
+        for (var child : children) {
+            try {
+                var parentAddress = parentContext.getRemoteAddress();
+                child.queueMessage(new NewParent(parentAddress));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    private void cancelMyTasks() {
+        taskTable.forEach((taskId, taskHandler) -> {
+            if (taskHandler.emitter() == null) {
+                for (var dest : taskHandler.destinations()) {
+                    dest.queueMessage(new CancelTask(taskId));
+                }
+            }
+        });
     }
 
     public void handleCancelTask(Context receiveFrom, CancelTask cancelTask) {
-
+        // Iterate over the tasks in the task table
+        for (TaskId taskId : taskTable.keySet()) {
+            var destinations = taskTable.get(taskId).destinations();
+            // Check if the application is in the task applications list
+            if (destinations.contains(receiveFrom)) {
+                // Stop the task and remove it from the task table
+                // TODO: stop the task
+                taskTable.remove(taskId);
+            }
+        }
     }
 
     public void handlePartialResult(Context receiveFrom, PartialResult partialResult) {
@@ -337,7 +442,18 @@ public class Application {
     }
 
     public void handleNewParent(Context receiveFrom, NewParent newParent) {
+        System.out.println("Received a newParent : " + newParent);
+        System.out.println("Should close the connection and reconnect!!");
+        // Close the current connection and open a new one to parent
+        receiveFrom.silentlyClose();
 
+
+        try {
+            connectToParent(newParent.newParent());
+            //parentContext.queueMessage(new Reconnect());
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     public void handleResumeTask(Context receiveFrom, ResumeTask resumeTask) {
@@ -418,4 +534,4 @@ public class Application {
 }
 
 // TEST LINE
-// START http://www-igm.univ-mlv.fr/~carayol/Factorizer.jar fr.uge.factors.Factorizer 0 200 ./res/text.txt
+// START http://www-igm.univ-mlv.fr/~carayol/Factorizer.jar fr.uge.factors.Factorizer 1 200 ./res/text.txt

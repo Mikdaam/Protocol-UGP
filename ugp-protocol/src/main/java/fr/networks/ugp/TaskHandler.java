@@ -1,53 +1,40 @@
 package fr.networks.ugp;
 
-import fr.networks.ugp.data.Range;
-import fr.networks.ugp.data.TaskId;
-import fr.networks.ugp.packets.*;
+import fr.networks.ugp.packets.Result;
+import fr.networks.ugp.packets.Task;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class TaskHandler {
-    public enum State {WAITING_RESULT, SENT_TO_EMITTER, RECEIVED_ALL_RESULT};
     private final Context emitter;
     private int resultToWait;
     private final ArrayList<Context> destinations = new ArrayList<>();
     public final Task task;
-    private final TaskId taskId;
-    private Result taskResult;
-    private State state = State.WAITING_RESULT;
+    private Result waitingResults;
 
     public TaskHandler(Task task, int resultToWait, Context emitter) {
         this.emitter = emitter;
         this.task = task;
-        this.taskId = task.id();
         this.resultToWait = resultToWait + 1;
+        this.waitingResults = new Result(task.id(), "");
     }
 
     public void addTaskDestination(Context destination) {
         System.out.println("Add a new destination : " + destination);
         destinations.add(destination);
     }
-
-    public State receivedTaskResult(Context resultEmitter, Result result) {
+    // return true if all the results have been received
+    public boolean receivedTaskResult(Context resultEmitter) {
         resultToWait--;
         if(resultEmitter != null) {
             destinations.remove(resultEmitter);
         }
+        return resultToWait == 0;
+    }
 
-        var oldResult = taskResult.result();
-        taskResult = new Result(taskId, oldResult + result.result());
-
-        if(resultToWait == 0) {
-            if(emitter != null) {
-                state = State.SENT_TO_EMITTER;
-            } else {
-                state = State.RECEIVED_ALL_RESULT;
-            }
-        }
-        return state;
+    public void storeResult(Result result) {
+        waitingResults = new Result(result.id(), waitingResults.result() + result.result());
     }
 
     public Context emitter() {
@@ -55,10 +42,13 @@ public class TaskHandler {
     }
 
     public Result taskResult() {
-        if(state != State.RECEIVED_ALL_RESULT) {
-            throw new IllegalStateException("Can't access to res");
-        }
-        return taskResult;
+        var res = waitingResults;
+        waitingResults = new Result(task.id(), "");
+        return res;
+    }
+
+    public List<Context> destinations() {
+        return destinations;
     }
 
     /*public void startTask(Task subTask) {

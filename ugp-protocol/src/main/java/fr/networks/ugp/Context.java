@@ -136,7 +136,7 @@ public class Context {
         key.interestOps(newInterestOps);
     }
 
-    private void silentlyClose() {
+    public void silentlyClose() {
         try {
             sc.close();
         } catch (IOException e) {
