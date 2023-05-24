@@ -10,7 +10,8 @@ public class TaskHandler {
     private Context emitter;
     private int resultToWait;
     private final ArrayList<Context> destinations = new ArrayList<>();
-    public final Task task;
+    private final Task task;
+    private Result partialResults;
     private Result waitingResults;
 
     public TaskHandler(Task task, int resultToWait, Context emitter) {
@@ -33,11 +34,24 @@ public class TaskHandler {
         return resultToWait == 0;
     }
 
-    public void storeResult(Result result) {
+    public Task task() {
+        return task;
+    }
+
+    public void receivePartialResult(Context receiveFrom, Result result) {
+        destinations.remove(receiveFrom);
         if(waitingResults == null) {
             waitingResults = result;
         } else {
             waitingResults = new Result(result.id(), waitingResults.result() + result.result());
+        }
+    }
+
+    public void pauseReceivedResults(Result result) {
+        if(partialResults == null) {
+            partialResults = result;
+        } else {
+            partialResults = new Result(result.id(), partialResults.result() + result.result());
         }
     }
 

@@ -1,5 +1,6 @@
 package fr.networks.ugp;
 
+import fr.networks.ugp.data.AddressList;
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.*;
@@ -16,7 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.SQLOutput;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -44,7 +44,8 @@ public class Application {
     private final HashMap<TaskId, CapacityManager> capacityTable = new HashMap<>();
     private final HashMap<TaskId, TaskHandler> taskTable = new HashMap<>();
     private final HashMap<TaskId, LaunchedTask> launchedTasks = new HashMap<>();
-    private HashMap<InetSocketAddress, Context> reconnected = new HashMap<>();
+    private final HashMap<InetSocketAddress, Context> reconnected = new HashMap<>();
+    private final ArrayList<Thread> taskInProgress = new ArrayList<>();
     private Context parentContext;
     private Context disconnectingContext;
     private boolean isAvailable = true;
@@ -176,7 +177,7 @@ public class Application {
         var taskHandler = taskTable.get(result.id());
 
         if (!isAvailable) {
-            taskHandler.storeResult(result);
+            taskHandler.pauseReceivedResults(result);
             return;
         }
 
@@ -212,8 +213,10 @@ public class Application {
         cancelMyTasks();
 
         // Then send "NEW_PARENT" to children
-        var parentAddress = parentContext.getRemoteAddress();
-        disconnectionHandler.receivedNotifyChild(parentAddress, children);
+        for (var child : children) {
+            var parentAddress = parentContext.getRemoteAddress();
+            child.queueMessage(new NewParent(parentAddress));
+        }
     }
 
     public void handleCancelTask(Context receiveFrom, CancelTask cancelTask) {
@@ -230,7 +233,15 @@ public class Application {
     }
 
     public void handlePartialResult(Context receiveFrom, PartialResult partialResult) {
+        var taskId = partialResult.id();
+        var taskHandler = taskTable.get(taskId);
 
+        taskHandler.receivePartialResult(receiveFrom, partialResult.result());
+
+        var task = taskHandler.task();
+        var remaingRange = new Range(partialResult.stoppedAt(), task.range().to());
+        var remainingTask = new Task(taskId, task.url(), task.className(), remaingRange);
+        tasksQueue.add(remainingTask);
     }
 
     public void handleAllSent(Context receiveFrom, AllSent allSent) {
@@ -260,9 +271,41 @@ public class Application {
     }
 
     public void handleNewParentOK(Context receiveFrom, NewParentOK newParentOK) {
-        // Start to send Partial Result to Parent
+        // TODO: Stop all the current task
+        // TODO: get the partial result of task and send it to parent [PARTIAL_RESULT & ALL_SENT]
 
+        if (!disconnectionHandler.allReconnectionDone()) {
+            return;
+        }
+
+        // Start to send Partial Result to Emitter
+        stopTasksAndSendPartialResult();
     }
+
+    private void stopTasksAndSendPartialResult() {
+        for (var taskThread : taskInProgress) {
+            // TODO: Manage the atomic result
+            taskThread.interrupt();
+            // TODO: Poll the result from queue and send a Partial result.
+        }
+
+        taskTable.forEach((taskId, taskHandler) -> {
+            var task = taskHandler.task();
+            if (taskHandler.emitter() != null) {
+                var destinations = taskHandler.destinations().stream().map(Context::getRemoteAddress).toList();
+                taskHandler.emitter().queueMessage(new PartialResult(taskId,new AddressList(destinations), task.range(), task.range().from(), new Result(taskId, "")));
+            }
+        });
+
+        broadcast(new ResumeTask());
+        selector.keys().forEach(selectionKey -> {
+            if (selectionKey.channel() instanceof ServerSocketChannel) {
+                return;
+            }
+            ((Context) selectionKey.attachment()).silentlyClose();
+        });
+    }
+
 
     public void handleResumeTask(Context receiveFrom, ResumeTask resumeTask) {
 
@@ -280,7 +323,7 @@ public class Application {
     public void handleReconnectOK(Context receiveFrom, ReconnectOK reconnectOK) {
         for (var taskHandler : taskTable.values()) {
             if (taskHandler.emitter().equals(disconnectingContext)) {
-                taskHandler.updateEmitter(disconnectingContext);
+                taskHandler.updateEmitter(receiveFrom);
             }
         }
 
@@ -421,7 +464,7 @@ public class Application {
         taskTable.put(id, taskHandler);
         System.out.println("No neighbors, launch the task ourselves");
         tasksQueue.add(task);
-        Thread.ofPlatform().start(this::launchTaskInBackground);
+        taskInProgress.add(Thread.ofPlatform().start(this::launchTaskInBackground));
     }
 
     private void handleWithNeighbors(Task task, TaskId id, Context receivedFrom, CapacityManager capacityManager) {
@@ -447,7 +490,7 @@ public class Application {
         System.out.println("Add task[our part task] : " + subTask);
         // TODO: Launch our task
         tasksQueue.add(subTask);
-        Thread.ofPlatform().start(this::launchTaskInBackground);
+        taskInProgress.add(Thread.ofPlatform().start(this::launchTaskInBackground));
 
         // Send the rest to destinations
         for (var entry : taskCapacityTable.entrySet()) {
@@ -494,6 +537,7 @@ public class Application {
             if (isTaskOrigin(taskHandler)) {
                 for (var dest : taskHandler.destinations()) {
                     dest.queueMessage(new CancelTask(taskId));
+                    // TODO: Cancel the current tasks
                 }
             }
         });

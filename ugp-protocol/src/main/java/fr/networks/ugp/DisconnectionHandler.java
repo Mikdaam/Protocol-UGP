@@ -51,10 +51,10 @@ public class DisconnectionHandler {
   }
 
   // return true if all children reconnecteed
-  /*public boolean receivedNewParentOk() {
+  public boolean allReconnectionDone() {
     disconnectingChildren--;
     return disconnectingChildren == 0;
-  }*/
+  }
 
   // TODO when we receive allow deconnexion, w<e have to send notify child to all childs waiting
 }
