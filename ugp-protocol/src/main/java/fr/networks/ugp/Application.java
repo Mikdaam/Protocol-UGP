@@ -177,7 +177,7 @@ public class Application {
 
         if (isTaskOrigin(taskHandler)) {
             // TODO write the res in the file [a private method]
-            writeResToFile(result);
+            writeResultToFile(result);
         } else {
             taskHandler.emitter().queueMessage(result);
         }
@@ -246,7 +246,7 @@ public class Application {
 
         try {
             connectToParent(newParent.newParent());
-            parentContext.queueMessage(new Reconnect(List.of()));
+            parentContext.queueMessage(new Reconnect());
             disconnectingContext = receiveFrom;
         } catch (IOException e) {
             throw new AssertionError(e);
@@ -468,7 +468,7 @@ public class Application {
 
             // TODO: Write to file
             if (emitter == null) {
-                writeResToFile(result);
+                writeResultToFile(result);
             } else {
                 System.out.println("Send to emitter");
                 emitter.queueMessage(result);
@@ -490,6 +490,16 @@ public class Application {
                 }
             }
         });
+    }
+
+    private void writeResultToFile(Result result) {
+        var taskId = result.id();
+        var taskLaunched = launchedTasks.get(taskId);
+        try {
+            Files.write(taskLaunched.file(), Collections.singleton(result.result()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            logger.severe(e.getMessage());
+        }
     }
 
     // =============[PACKETS]
@@ -553,16 +563,6 @@ public class Application {
             }
             ((Context) selectionKey.attachment()).queueMessage(packet);
         });
-    }
-
-    private void writeResToFile(Result result) {
-        var taskId = result.id();
-        var taskLaunched = launchedTasks.get(taskId);
-        try {
-            Files.write(taskLaunched.file(), Collections.singleton(result.result()), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            logger.severe(e.getMessage());
-        }
     }
 
     public static void main(String[] args) throws NumberFormatException, IOException {
