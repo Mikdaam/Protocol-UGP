@@ -3,16 +3,18 @@ package fr.networks.ugp;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.*;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.Selector;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 public class DisconnectionHandler {
-  private enum State {RUNNING, WAITING_FOR_NOTIFY, WAITING_TO_DISCONNECT}
+  //private enum State {RUNNING, WAITING_FOR_NOTIFY, WAITING_TO_DISCONNECT}
   private final HashMap<TaskId, CapacityManager> capacityTable;
   private final HashMap<TaskId, TaskHandler> taskTable;
-  private final ArrayList<Context> waitingToDisconnect = new ArrayList<>(); // List of children wanting to disconnect
-  private State state = State.RUNNING;
+  //private State state = State.RUNNING;
   private final Context parent;
   private final Selector selector;
 
@@ -28,24 +30,23 @@ public class DisconnectionHandler {
       throw new IllegalStateException("Root can't disconnect");
     }
     parent.queueMessage(new LeavingNotification());
-    state = State.WAITING_FOR_NOTIFY;
+    //state = State.WAITING_FOR_NOTIFY;
   }
 
   public void wantToDisconnect(Context wantingToDisconnect) {
-    if(state != State.RUNNING) {
-      waitingToDisconnect.add(wantingToDisconnect);
-      return;
-    }
     wantingToDisconnect.queueMessage(new NotifyChild());
   }
 
-  /*public void receivedNotifyChild() {
-    taskTable.forEach((taskId, taskHandler) -> {
+  /*taskTable.forEach((taskId, taskHandler) -> {
       taskHandler.stopTask(parent);
     });
     parent.queueMessage(new AllSent());
-    state = State.WAITING_TO_DISCONNECT;
-  }*/
+    state = State.WAITING_TO_DISCONNECT;*/
+  public void receivedNotifyChild(InetSocketAddress parentAddress, List<Context> children) {
+    for (var child : children) {
+      child.queueMessage(new NewParent(parentAddress));
+    }
+  }
 
   // TODO when we receive allow deconnexion, w<e have to send notify child to all childs waiting
 }

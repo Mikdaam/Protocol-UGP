@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TaskHandler {
-    private final Context emitter;
+    private Context emitter;
     private int resultToWait;
     private final ArrayList<Context> destinations = new ArrayList<>();
     public final Task task;
@@ -17,7 +17,7 @@ public class TaskHandler {
         this.emitter = emitter;
         this.task = task;
         this.resultToWait = resultToWait + 1;
-        this.waitingResults = new Result(task.id(), "");
+        this.waitingResults = null;
     }
 
     public void addTaskDestination(Context destination) {
@@ -34,16 +34,24 @@ public class TaskHandler {
     }
 
     public void storeResult(Result result) {
-        waitingResults = new Result(result.id(), waitingResults.result() + result.result());
+        if(waitingResults == null) {
+            waitingResults = result;
+        } else {
+            waitingResults = new Result(result.id(), waitingResults.result() + result.result());
+        }
     }
 
     public Context emitter() {
         return emitter;
     }
 
+    public void updateEmitter(Context newEmitter) {
+        emitter = newEmitter;
+    }
+
     public Result taskResult() {
         var res = waitingResults;
-        waitingResults = new Result(task.id(), "");
+        waitingResults = null;
         return res;
     }
 

@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.SQLOutput;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -43,10 +44,14 @@ public class Application {
     private final HashMap<TaskId, CapacityManager> capacityTable = new HashMap<>();
     private final HashMap<TaskId, TaskHandler> taskTable = new HashMap<>();
     private final HashMap<TaskId, LaunchedTask> launchedTasks = new HashMap<>();
+    private HashMap<InetSocketAddress, Context> reconnected = new HashMap<>();
     private Context parentContext;
     private Context disconnectingContext;
     private boolean isAvailable = true;
     private long localTaskId = 0;
+
+    private final ArrayList<Context> waitingToDisconnect = new ArrayList<>(); // List of children wanting to disconnect
+    private DisconnectionHandler disconnectionHandler;
 
     public Application(InetSocketAddress serverAddress, int port, Path directory) throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
@@ -71,7 +76,7 @@ public class Application {
         if(serverAddress != null) {
             connectToParent(serverAddress);
         }
-        //disconnectionHandler = new DisconnectionHandler(parentContext, selector, capacityTable, taskTable); // TODO Change place this line
+        disconnectionHandler = new DisconnectionHandler(parentContext, selector, capacityTable, taskTable); // TODO Change place this line
         console.start();
 
         while (!Thread.interrupted()) {
@@ -170,10 +175,10 @@ public class Application {
 
         var taskHandler = taskTable.get(result.id());
 
-        /*if (cantSend) {
+        if (!isAvailable) {
             taskHandler.storeResult(result);
             return;
-        }*/
+        }
 
         if (isTaskOrigin(taskHandler)) {
             // TODO write the res in the file [a private method]
@@ -194,9 +199,12 @@ public class Application {
     }
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
-        // disconnectionHandler.wantToDisconnect(receiveFrom);
-        isAvailable = false;
-        receiveFrom.queueMessage(new NotifyChild());
+        if(isAvailable) {
+            isAvailable = false;
+            disconnectionHandler.wantToDisconnect(receiveFrom);
+        } else {
+            waitingToDisconnect.add(receiveFrom);
+        }
     }
 
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
@@ -204,17 +212,12 @@ public class Application {
         cancelMyTasks();
 
         // Then send "NEW_PARENT" to children
-        for (var child : children) {
-            try {
-                var parentAddress = parentContext.getRemoteAddress();
-                child.queueMessage(new NewParent(parentAddress));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
+        try {
+            var parentAddress = parentContext.getRemoteAddress();
+            disconnectionHandler.receivedNotifyChild(parentAddress, children);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-
-        // TODO: Stop all the current task
-        // TODO: get the partial result of task and send it to parent [PARTIAL_RESULT & ALL_SENT]
     }
 
     public void handleCancelTask(Context receiveFrom, CancelTask cancelTask) {
@@ -242,7 +245,7 @@ public class Application {
         System.out.println("Received a newParent : " + newParent);
         System.out.println("Not available from now on");
         isAvailable = false;
-        System.out.println("The reconnect to parent!!");
+        System.out.println("Then reconnect to parent!!");
 
         try {
             connectToParent(newParent.newParent());
@@ -270,14 +273,18 @@ public class Application {
     }
 
     public void handleReconnect(Context receiveFrom, Reconnect reconnect) {
-        receiveFrom.queueMessage(new ReconnectOK());
+        try {
+            reconnected.put(receiveFrom.getRemoteAddress(), receiveFrom);
+            receiveFrom.queueMessage(new ReconnectOK());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public void handleReconnectOK(Context receiveFrom, ReconnectOK reconnectOK) {
         for (var taskHandler : taskTable.values()) {
             if (taskHandler.emitter().equals(disconnectingContext)) {
-                /*taskHandler.emitter(disconnectingContext);
-                taskHandler.update*/
+                taskHandler.updateEmitter(disconnectingContext);
             }
         }
 
@@ -363,7 +370,12 @@ public class Application {
                     broadcast(new CapacityRequest(taskId));
                 }
                 case CommandParser.Disconnect disconnect -> {
-                    //disconnectionHandler.startingDisconnection();
+                    if(isAvailable) {
+                        isAvailable = false;
+                        disconnectionHandler.startingDisconnection();
+                    } else {
+                        System.out.println("A deconnection is already in progress please retry after");
+                    }
                 }
                 default -> throw new IllegalStateException("Unexpected value: " + command);
             }
