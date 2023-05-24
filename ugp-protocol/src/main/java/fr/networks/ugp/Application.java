@@ -212,12 +212,8 @@ public class Application {
         cancelMyTasks();
 
         // Then send "NEW_PARENT" to children
-        try {
-            var parentAddress = parentContext.getRemoteAddress();
-            disconnectionHandler.receivedNotifyChild(parentAddress, children);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        var parentAddress = parentContext.getRemoteAddress();
+        disconnectionHandler.receivedNotifyChild(parentAddress, children);
     }
 
     public void handleCancelTask(Context receiveFrom, CancelTask cancelTask) {
@@ -238,7 +234,11 @@ public class Application {
     }
 
     public void handleAllSent(Context receiveFrom, AllSent allSent) {
-
+        receiveFrom.silentlyClose();
+        isAvailable = true;
+        if(!waitingToDisconnect.isEmpty()) {
+            // TODO launch new disconnection
+        }
     }
 
     public void handleNewParent(Context receiveFrom, NewParent newParent) {
@@ -273,12 +273,8 @@ public class Application {
     }
 
     public void handleReconnect(Context receiveFrom, Reconnect reconnect) {
-        try {
-            reconnected.put(receiveFrom.getRemoteAddress(), receiveFrom);
-            receiveFrom.queueMessage(new ReconnectOK());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        reconnected.put(receiveFrom.getRemoteAddress(), receiveFrom);
+        receiveFrom.queueMessage(new ReconnectOK());
     }
 
     public void handleReconnectOK(Context receiveFrom, ReconnectOK reconnectOK) {
@@ -289,7 +285,6 @@ public class Application {
         }
 
         disconnectingContext.queueMessage(new NewParentOK());
-        disconnectingContext.silentlyClose();
     }
 
 
