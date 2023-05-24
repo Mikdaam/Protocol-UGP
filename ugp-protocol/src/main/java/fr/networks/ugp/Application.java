@@ -555,6 +555,16 @@ public class Application {
         });
     }
 
+    private void writeResToFile(Result result) {
+        var taskId = result.id();
+        var taskLaunched = launchedTasks.get(taskId);
+        try {
+            Files.write(taskLaunched.file(), Collections.singleton(result.result()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            logger.severe(e.getMessage());
+        }
+    }
+
     public static void main(String[] args) throws NumberFormatException, IOException {
         if (args.length != 2 && args.length != 4) {
             usage();
