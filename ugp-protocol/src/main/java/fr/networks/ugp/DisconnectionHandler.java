@@ -34,9 +34,6 @@ public class DisconnectionHandler {
     //state = State.WAITING_FOR_NOTIFY;
   }
 
-  public void wantToDisconnect(Context wantingToDisconnect) {
-    wantingToDisconnect.queueMessage(new NotifyChild());
-  }
 
   /*taskTable.forEach((taskId, taskHandler) -> {
       taskHandler.stopTask(parent);

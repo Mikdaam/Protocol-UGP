@@ -1,5 +1,6 @@
 package fr.networks.ugp.utils;
 
+import java.util.Locale;
 import java.util.Optional;
 
 public class CommandParser {
@@ -11,7 +12,7 @@ public class CommandParser {
         var parts = command.split(" ");
         var keyword = parts[0];
 
-        return switch (keyword) {
+        return switch (keyword.toUpperCase(Locale.ROOT)) {
             case "START" -> {
                 if (parts.length != 6) {
                     System.out.println("Invalid START command.");

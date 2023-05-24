@@ -32,7 +32,7 @@ public class Application {
     // For the client part
     private final InetSocketAddress serverAddress;
     private final Selector selector;
-    private final SocketChannel sc;
+    private SocketChannel sc;
     private final Thread console;
     private final Path resultDirectory;
     private final Object lock = new Object();
@@ -53,6 +53,7 @@ public class Application {
 
     private final ArrayDeque<Context> waitingToDisconnect = new ArrayDeque<>(); // List of children wanting to disconnect
     private DisconnectionHandler disconnectionHandler;
+    private SocketChannel oldParent = null;
 
     public Application(InetSocketAddress serverAddress, int port, Path directory) throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
@@ -200,15 +201,17 @@ public class Application {
     }
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
+        System.out.println("Received leaving notification");
         if(isAvailable) {
             isAvailable = false;
-            disconnectionHandler.wantToDisconnect(receiveFrom);
+            receiveFrom.queueMessage(new NotifyChild());
         } else {
             waitingToDisconnect.add(receiveFrom);
         }
     }
 
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
+        System.out.println("Received notify child");
         // disconnectionHandler.receivedNotifyChild();
         cancelMyTasks();
 
@@ -251,8 +254,17 @@ public class Application {
     public void handleAllSent(Context receiveFrom, AllSent allSent) {
         receiveFrom.silentlyClose();
         isAvailable = true;
+        if(oldParent != null) {
+            try {
+                oldParent.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            oldParent = null;
+        }
         if(!waitingToDisconnect.isEmpty()) {
-            // TODO launch new disconnection
+            isAvailable = false;
+            waitingToDisconnect.pollFirst().queueMessage(new NotifyChild());
         }
     }
 
@@ -261,6 +273,13 @@ public class Application {
         System.out.println("Not available from now on");
         isAvailable = false;
         System.out.println("Then reconnect to parent!!");
+
+        oldParent = sc;
+        try {
+            sc = SocketChannel.open();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         try {
             connectToParent(newParent.newParent());
@@ -588,6 +607,10 @@ public class Application {
     // =============[PACKETS]
 
     private void connectToParent(InetSocketAddress address) throws IOException {
+        if(parentContext != null) {
+            System.out.println(parentContext.getRemoteAddress().equals(address));
+        }
+
         sc.configureBlocking(false);
         var key = sc.register(selector, SelectionKey.OP_CONNECT);
         parentContext = new Context(this, key);
@@ -677,4 +700,4 @@ public class Application {
 }
 
 // TEST LINE
-// START http://www-igm.univ-mlv.fr/~carayol/Factorizer.jar fr.uge.factors.Factorizer 1 200 ./res/text.txt
+// START http://www-igm.univ-mlv.fr/~carayol/Factorizer.jar fr.uge.factors.Factorizer 1 200 res/text.txt
