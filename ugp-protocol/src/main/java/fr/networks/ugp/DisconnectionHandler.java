@@ -1,8 +1,5 @@
 package fr.networks.ugp;
 
-import fr.networks.ugp.CapacityHandler;
-import fr.networks.ugp.Context;
-import fr.networks.ugp.TaskHandler;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.*;
 
@@ -12,14 +9,14 @@ import java.util.HashMap;
 
 public class DisconnectionHandler {
   private enum State {RUNNING, WAITING_FOR_NOTIFY, WAITING_TO_DISCONNECT}
-  private final HashMap<TaskId, CapacityHandler> capacityTable;
+  private final HashMap<TaskId, CapacityManager> capacityTable;
   private final HashMap<TaskId, TaskHandler> taskTable;
   private final ArrayList<Context> waitingToDisconnect = new ArrayList<>(); // List of children wanting to disconnect
   private State state = State.RUNNING;
   private final Context parent;
   private final Selector selector;
 
-  public DisconnectionHandler(Context parent, Selector selector, HashMap<TaskId, CapacityHandler> capacityTable, HashMap<TaskId, TaskHandler> taskTable) {
+  public DisconnectionHandler(Context parent, Selector selector, HashMap<TaskId, CapacityManager> capacityTable, HashMap<TaskId, TaskHandler> taskTable) {
     this.parent = parent;
     this.selector = selector;
     this.capacityTable = capacityTable;

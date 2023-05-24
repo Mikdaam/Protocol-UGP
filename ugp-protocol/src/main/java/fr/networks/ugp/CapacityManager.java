@@ -4,7 +4,7 @@ import fr.networks.ugp.packets.Capacity;
 
 import java.util.HashMap;
 
-public class CapacityHandler {
+public class CapacityManager {
 	public enum State { WAITING_RESPONSE, SENT_TO_EMITTER, RECEIVED_ALL};
 
 	private final HashMap<Context, Integer> taskCapacityTable = new HashMap<>();
@@ -12,7 +12,7 @@ public class CapacityHandler {
 	private int responseToWait;
 	private State state = State.WAITING_RESPONSE;
 
-	public CapacityHandler(Context emitter, int responseToWait) {
+	public CapacityManager(Context emitter, int responseToWait) {
 		this.emitter = emitter;
 		this.responseToWait = responseToWait;
 	}
