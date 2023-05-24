@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayDeque;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Context {
@@ -186,7 +187,12 @@ public class Context {
         key.interestOps(SelectionKey.OP_WRITE);
     }
 
-    public InetSocketAddress getRemoteAddress() throws IOException {
-        return (InetSocketAddress) sc.getRemoteAddress();
+    public InetSocketAddress getRemoteAddress() {
+        try {
+            return (InetSocketAddress) sc.getRemoteAddress();
+        } catch (IOException e) {
+            logger.log(Level.SEVERE, e.getMessage());
+        }
+        return null;
     }
 }
