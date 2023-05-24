@@ -51,7 +51,7 @@ public class Application {
     private boolean isAvailable = true;
     private long localTaskId = 0;
 
-    private final ArrayList<Context> waitingToDisconnect = new ArrayList<>(); // List of children wanting to disconnect
+    private final ArrayDeque<Context> waitingToDisconnect = new ArrayDeque<>(); // List of children wanting to disconnect
     private DisconnectionHandler disconnectionHandler;
 
     public Application(InetSocketAddress serverAddress, int port, Path directory) throws IOException {
@@ -177,7 +177,7 @@ public class Application {
         var taskHandler = taskTable.get(result.id());
 
         if (!isAvailable) {
-            taskHandler.pauseReceivedResults(result);
+            taskHandler.storeResult(receiveFrom, result);
             return;
         }
 
@@ -236,12 +236,16 @@ public class Application {
         var taskId = partialResult.id();
         var taskHandler = taskTable.get(taskId);
 
-        taskHandler.receivePartialResult(receiveFrom, partialResult.result());
+        taskHandler.receivedPartialResult(receiveFrom);
+        if(!partialResult.range().from().equals(partialResult.stoppedAt())) {
+            taskHandler.emitter().queueMessage(partialResult.result());
+        }
 
         var task = taskHandler.task();
         var remaingRange = new Range(partialResult.stoppedAt(), task.range().to());
         var remainingTask = new Task(taskId, task.url(), task.className(), remaingRange);
         tasksQueue.add(remainingTask);
+        taskInProgress.add(Thread.ofPlatform().start(this::launchTaskInBackground));
     }
 
     public void handleAllSent(Context receiveFrom, AllSent allSent) {
@@ -308,7 +312,35 @@ public class Application {
 
 
     public void handleResumeTask(Context receiveFrom, ResumeTask resumeTask) {
+        isAvailable = true;
+        taskTable.forEach((taskId, taskHandler) -> {
+            var optionalRes = taskHandler.waitingResult();
+            if(optionalRes.isEmpty()) {
+                return;
+            }
+            var result = optionalRes.get();
+            if (isTaskOrigin(taskHandler)) {
+                // TODO write the res in the file [a private method]
+                writeResultToFile(result);
+            } else {
+                taskHandler.emitter().queueMessage(result);
+            }
 
+            if(!taskHandler.receivedTaskResult(receiveFrom)) {
+                // Attend 2 result et il en recoit 3
+                return;
+            };
+
+            // Free resource
+            capacityTable.remove(result.id());
+            taskTable.remove(result.id());
+            launchedTasks.remove(result.id());
+        });
+
+        if(!waitingToDisconnect.isEmpty()) {
+            isAvailable = false;
+            waitingToDisconnect.pollFirst().queueMessage(new NotifyChild());
+        }
     }
 
     public void handleAllowDeconnection(Context receiveFrom, AllowDeconnection allowDeconnection) {

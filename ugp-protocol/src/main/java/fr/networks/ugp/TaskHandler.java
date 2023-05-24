@@ -5,6 +5,7 @@ import fr.networks.ugp.packets.Task;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class TaskHandler {
     private Context emitter;
@@ -38,8 +39,9 @@ public class TaskHandler {
         return task;
     }
 
-    public void receivePartialResult(Context receiveFrom, Result result) {
+    public void storeResult(Context receiveFrom, Result result) {
         destinations.remove(receiveFrom);
+        resultToWait--;
         if(waitingResults == null) {
             waitingResults = result;
         } else {
@@ -47,14 +49,9 @@ public class TaskHandler {
         }
     }
 
-    public void pauseReceivedResults(Result result) {
-        if(partialResults == null) {
-            partialResults = result;
-        } else {
-            partialResults = new Result(result.id(), partialResults.result() + result.result());
-        }
+    public void receivedPartialResult(Context resultEmitter) {
+        destinations.remove(resultEmitter);
     }
-
     public Context emitter() {
         return emitter;
     }
@@ -63,8 +60,8 @@ public class TaskHandler {
         emitter = newEmitter;
     }
 
-    public Result taskResult() {
-        var res = waitingResults;
+    public Optional<Result> waitingResult() {
+        var res = Optional.ofNullable(waitingResults);
         waitingResults = null;
         return res;
     }
