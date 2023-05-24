@@ -17,18 +17,16 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 public class PartialResultReader implements Reader<Packet> {
-    public enum State { DONE, WAITING_TASK_ID, WAITING_SOURCE, WAITING_DESTINATIONS, WAITING_RANGE, WAITING_STOPPED, WAITING_RESULT, ERROR }
+    public enum State { DONE, WAITING_TASK_ID, WAITING_DESTINATIONS, WAITING_RANGE, WAITING_STOPPED, WAITING_RESULT, ERROR }
 
     private State state = State.WAITING_TASK_ID;
     private final TaskIdReader taskIdReader = new TaskIdReader();
-    private final SocketAddressReader socketAddressReader = new SocketAddressReader();
     private final AddressListReader addressListReader = new AddressListReader();
     private final RangeReader rangeReader = new RangeReader();
     private final LongReader longReader = new LongReader();
     private final ResultReader resultReader = new ResultReader();
     private PartialResult partialResult;
     private TaskId taskId;
-    private InetSocketAddress taskSourceAddress;
     private AddressList addressList;
     private Range range;
     private Long stoppedAt;
@@ -45,15 +43,6 @@ public class PartialResultReader implements Reader<Packet> {
                 return status;
             }
             taskId = taskIdReader.get();
-            state = State.WAITING_SOURCE;
-        }
-
-        if(state == State.WAITING_SOURCE) {
-            var status = socketAddressReader.process(bb);
-            if(status != ProcessStatus.DONE) {
-                return status;
-            }
-            taskSourceAddress = socketAddressReader.get();
             state = State.WAITING_DESTINATIONS;
         }
 
@@ -95,7 +84,7 @@ public class PartialResultReader implements Reader<Packet> {
         }
         state = State.DONE;
         var result = resultReader.get();
-        partialResult = new PartialResult(taskId, taskSourceAddress,addressList, range, stoppedAt, result);
+        partialResult = new PartialResult(taskId,addressList, range, stoppedAt, result);
         return ProcessStatus.DONE;
     }
 
@@ -111,7 +100,6 @@ public class PartialResultReader implements Reader<Packet> {
     public void reset() {
         state = State.WAITING_TASK_ID;
         taskIdReader.reset();
-        socketAddressReader.reset();
         rangeReader.reset();
         longReader.reset();
         resultReader.reset();
