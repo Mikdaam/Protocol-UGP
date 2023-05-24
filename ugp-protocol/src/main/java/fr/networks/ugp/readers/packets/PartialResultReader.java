@@ -1,9 +1,11 @@
 package fr.networks.ugp.readers.packets;
 
+import fr.networks.ugp.data.AddressList;
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.Packet;
 import fr.networks.ugp.packets.PartialResult;
+import fr.networks.ugp.readers.AddressListReader;
 import fr.networks.ugp.readers.RangeReader;
 import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.TaskIdReader;
@@ -12,19 +14,22 @@ import fr.networks.ugp.readers.base.address.SocketAddressReader;
 
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 public class PartialResultReader implements Reader<Packet> {
-    public enum State { DONE, WAITING_TASK_ID, WAITING_SOURCE, WAITING_RANGE, WAITING_STOPPED, WAITING_RESULT, ERROR }
+    public enum State { DONE, WAITING_TASK_ID, WAITING_SOURCE, WAITING_DESTINATIONS, WAITING_RANGE, WAITING_STOPPED, WAITING_RESULT, ERROR }
 
     private State state = State.WAITING_TASK_ID;
     private final TaskIdReader taskIdReader = new TaskIdReader();
     private final SocketAddressReader socketAddressReader = new SocketAddressReader();
+    private final AddressListReader addressListReader = new AddressListReader();
     private final RangeReader rangeReader = new RangeReader();
     private final LongReader longReader = new LongReader();
     private final ResultReader resultReader = new ResultReader();
     private PartialResult partialResult;
     private TaskId taskId;
     private InetSocketAddress taskSourceAddress;
+    private AddressList addressList;
     private Range range;
     private Long stoppedAt;
 
@@ -49,6 +54,20 @@ public class PartialResultReader implements Reader<Packet> {
                 return status;
             }
             taskSourceAddress = socketAddressReader.get();
+            state = State.WAITING_DESTINATIONS;
+        }
+
+        if(state == State.WAITING_DESTINATIONS) {
+            var status = addressListReader.process(bb);
+            if(status != ProcessStatus.DONE) {
+                return status;
+            }
+            var addresses = addressListReader.get();
+            var inetList = new ArrayList<InetSocketAddress>();
+            for(var address : addresses) {
+                inetList.add((InetSocketAddress) address);
+            }
+            addressList = new AddressList(inetList);
             state = State.WAITING_RANGE;
         }
 
@@ -76,7 +95,7 @@ public class PartialResultReader implements Reader<Packet> {
         }
         state = State.DONE;
         var result = resultReader.get();
-        partialResult = new PartialResult(taskId, taskSourceAddress, range, stoppedAt, result);
+        partialResult = new PartialResult(taskId, taskSourceAddress,addressList, range, stoppedAt, result);
         return ProcessStatus.DONE;
     }
 
