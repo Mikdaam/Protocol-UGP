@@ -17,6 +17,7 @@ public class DisconnectionHandler {
   //private State state = State.RUNNING;
   private final Context parent;
   private final Selector selector;
+  private int disconnectingChildren = 0;
 
   public DisconnectionHandler(Context parent, Selector selector, HashMap<TaskId, CapacityManager> capacityTable, HashMap<TaskId, TaskHandler> taskTable) {
     this.parent = parent;
@@ -45,7 +46,14 @@ public class DisconnectionHandler {
   public void receivedNotifyChild(InetSocketAddress parentAddress, List<Context> children) {
     for (var child : children) {
       child.queueMessage(new NewParent(parentAddress));
+      disconnectingChildren++;
     }
+  }
+
+  // return true if all children reconnecteed
+  public boolean receivedNewParentOk() {
+    disconnectingChildren--;
+    return disconnectingChildren == 0;
   }
 
   // TODO when we receive allow deconnexion, w<e have to send notify child to all childs waiting
