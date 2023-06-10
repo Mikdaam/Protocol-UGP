@@ -1,0 +1,15 @@
+Rendu final
+
+- PDF avec les problems qui restent
+- Tous ceux qui a ete reproche [comment ca a ete addresse] ?
+- *Probleme generale*, Fais des taskManger[capacity, etc]
+{
+ - probleme de thread safe
+ - vrai repartition des objets
+}
+
+- processOut, [gerer buffer] 
+- { jolie class Tasktable }
+- gerer bien la repartition
+- taches [lancement], {executors service (plus thread safe) }
+- si y a du temps [ refactor bien  ]

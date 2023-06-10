@@ -8,15 +8,16 @@ import fr.networks.ugp.utils.Client;
 import fr.networks.ugp.utils.CommandParser;
 import fr.networks.ugp.utils.Helpers;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.channels.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -173,8 +174,6 @@ public class Application {
 
     public void handleResult(Context receiveFrom, Result result) {
         System.out.println("Received a task result");
-        System.out.println("Received: " + result);
-
         var taskHandler = taskTable.get(result.id());
 
         if (!isAvailable) {
@@ -192,7 +191,7 @@ public class Application {
         if(!taskHandler.receivedTaskResult(receiveFrom)) {
             // Attend 2 result et il en recoit 3
             return;
-        };
+        }
 
         // Free resource
         capacityTable.remove(result.id());
@@ -204,6 +203,7 @@ public class Application {
         System.out.println("Received leaving notification");
         if(isAvailable) {
             isAvailable = false;
+            System.out.println("Send NotifyChild to child");
             receiveFrom.queueMessage(new NotifyChild());
         } else {
             waitingToDisconnect.add(receiveFrom);
@@ -215,6 +215,10 @@ public class Application {
         // disconnectionHandler.receivedNotifyChild();
         cancelMyTasks();
 
+        if (!hasNeighborsExceptEmitter()) {
+            stopTasksAndSendPartialResult();
+            return;
+        }
         // Then send "NEW_PARENT" to children
         for (var child : children) {
             var parentAddress = parentContext.getRemoteAddress();
@@ -331,6 +335,7 @@ public class Application {
 
 
     public void handleResumeTask(Context receiveFrom, ResumeTask resumeTask) {
+        System.out.println("Receive resume Task");
         isAvailable = true;
         taskTable.forEach((taskId, taskHandler) -> {
             var optionalRes = taskHandler.waitingResult();
@@ -348,7 +353,7 @@ public class Application {
             if(!taskHandler.receivedTaskResult(receiveFrom)) {
                 // Attend 2 result et il en recoit 3
                 return;
-            };
+            }
 
             // Free resource
             capacityTable.remove(result.id());
@@ -598,9 +603,15 @@ public class Application {
         var taskId = result.id();
         var taskLaunched = launchedTasks.get(taskId);
         try {
-            Files.write(taskLaunched.file(), Collections.singleton(result.result()), StandardCharsets.UTF_8);
+            var file = new File(taskLaunched.file().toUri());
+            var dir = file.getParentFile();
+            if(!dir.exists()) {
+                dir.mkdirs();
+            }
+            file.createNewFile();
+            Files.write(taskLaunched.file(), Collections.singleton(result.result()), StandardOpenOption.APPEND);
         } catch (IOException e) {
-            logger.severe(e.getMessage());
+            logger.severe(e.getCause().toString());
         }
     }
 

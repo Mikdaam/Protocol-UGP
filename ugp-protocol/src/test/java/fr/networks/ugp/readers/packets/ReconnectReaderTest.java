@@ -25,7 +25,7 @@ public class ReconnectReaderTest {
 	void process() {
 		var task1 = new TaskId(1, new InetSocketAddress("127.0.0.1", 8080));
 		var task2 = new TaskId(2, new InetSocketAddress("192.168.0.1", 8888));
-		var rec = new Reconnect(List.of(task1, task2));
+		var rec = new Reconnect();
 
 		var bb = rec.encode();
 
