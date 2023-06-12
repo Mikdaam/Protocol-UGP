@@ -144,6 +144,7 @@ public class Context {
             sc.close();
         } catch (IOException e) {
             // ignore exception
+            logger.info("Disconnecting .... ?");
         }
     }
 

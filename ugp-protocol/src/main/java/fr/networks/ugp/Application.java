@@ -213,16 +213,20 @@ public class Application {
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
         System.out.println("Received notify child");
         // disconnectionHandler.receivedNotifyChild();
-        cancelMyTasks();
+        // cancelLaunchedTasks();
 
         if (!hasNeighborsExceptEmitter()) {
-            stopTasksAndSendPartialResult();
-            return;
-        }
-        // Then send "NEW_PARENT" to children
-        for (var child : children) {
-            var parentAddress = parentContext.getRemoteAddress();
-            child.queueMessage(new NewParent(parentAddress));
+            System.out.println("I am a child, so no children\nDo nothing but closing the context");
+            receiveFrom.silentlyClose();
+            System.exit(0);
+            // stopTasksAndSendPartialResult();
+        } else {
+            // Then send "NEW_PARENT" to children
+            System.out.println("I'm a parent, let's my children known");
+            for (var child : children) {
+                var parentAddress = parentContext.getRemoteAddress();
+                child.queueMessage(new NewParent(parentAddress));
+            }
         }
     }
 
@@ -249,8 +253,8 @@ public class Application {
         }
 
         var task = taskHandler.task();
-        var remaingRange = new Range(partialResult.stoppedAt(), task.range().to());
-        var remainingTask = new Task(taskId, task.url(), task.className(), remaingRange);
+        var remaningRange = new Range(partialResult.stoppedAt(), task.range().to());
+        var remainingTask = new Task(taskId, task.url(), task.className(), remaningRange);
         tasksQueue.add(remainingTask);
         taskInProgress.add(Thread.ofPlatform().start(this::launchTaskInBackground));
     }
@@ -273,7 +277,7 @@ public class Application {
     }
 
     public void handleNewParent(Context receiveFrom, NewParent newParent) {
-        System.out.println("Received a newParent : " + newParent);
+        System.out.println("Received a address : " + newParent);
         System.out.println("Not available from now on");
         isAvailable = false;
         System.out.println("Then reconnect to parent!!");
@@ -286,7 +290,7 @@ public class Application {
         }
 
         try {
-            connectToParent(newParent.newParent());
+            connectToParent(newParent.address());
             parentContext.queueMessage(new Reconnect());
             disconnectingContext = receiveFrom;
         } catch (IOException e) {
@@ -305,17 +309,21 @@ public class Application {
             return;
         }
 
+        System.out.println("Closing this context");
+        receiveFrom.silentlyClose();
         // Start to send Partial Result to Emitter
-        stopTasksAndSendPartialResult();
+        // stopTasksAndSendPartialResult();
     }
 
     private void stopTasksAndSendPartialResult() {
+        System.out.println("Stopping all the task threads in a loop");
         for (var taskThread : taskInProgress) {
             // TODO: Manage the atomic result
             taskThread.interrupt();
             // TODO: Poll the result from queue and send a Partial result.
         }
 
+        System.out.println("go through the task table");
         taskTable.forEach((taskId, taskHandler) -> {
             var task = taskHandler.task();
             if (taskHandler.emitter() != null) {
@@ -324,13 +332,17 @@ public class Application {
             }
         });
 
+        /*System.out.println("A broadcast here [why ??]");
         broadcast(new ResumeTask());
+        System.out.println("Closing all the context [why ??]");
         selector.keys().forEach(selectionKey -> {
+            System.out.println("key : " + selectionKey);
             if (selectionKey.channel() instanceof ServerSocketChannel) {
                 return;
             }
+            System.out.println("Silently close here ??");
             ((Context) selectionKey.attachment()).silentlyClose();
-        });
+        });*/
     }
 
 
@@ -467,8 +479,11 @@ public class Application {
                     if(isAvailable) {
                         isAvailable = false;
                         disconnectionHandler.startingDisconnection();
+                        cancelLaunchedTasks(); // [1]
+                        stopTasksAndSendPartialResult(); // [2]
+                        parentContext.queueMessage(new LeavingNotification()); // [3]
                     } else {
-                        System.out.println("A deconnection is already in progress please retry after");
+                        System.out.println("A disconnection is already in progress please retry after");
                     }
                 }
                 default -> throw new IllegalStateException("Unexpected value: " + command);
@@ -588,7 +603,7 @@ public class Application {
         }
     }
 
-    private void cancelMyTasks() {
+    private void cancelLaunchedTasks() {
         taskTable.forEach((taskId, taskHandler) -> {
             if (isTaskOrigin(taskHandler)) {
                 for (var dest : taskHandler.destinations()) {
@@ -682,22 +697,26 @@ public class Application {
         });
     }
 
-    public static void main(String[] args) throws NumberFormatException, IOException {
+    public static void main(String[] args) throws NumberFormatException {
         if (args.length != 2 && args.length != 4) {
             usage();
             return;
         }
 
-        if(args.length == 2) {
-            int port = Integer.parseInt(args[0]);
-            var resultsDirectory = Paths.get(args[1]);
-            new Application(null, port, resultsDirectory).launch();
-        } else {
-            int port = Integer.parseInt(args[0]);
-            var resultsDirectory = Paths.get(args[1]);
-            var parentHost = args[2];
-            int parentPort = Integer.parseInt(args[3]);
-            new Application(new InetSocketAddress(parentHost, parentPort), port, resultsDirectory).launch();
+        try {
+            if(args.length == 2) {
+                int port = Integer.parseInt(args[0]);
+                var resultsDirectory = Paths.get(args[1]);
+                new Application(null, port, resultsDirectory).launch();
+            } else {
+                int port = Integer.parseInt(args[0]);
+                var resultsDirectory = Paths.get(args[1]);
+                var parentHost = args[2];
+                int parentPort = Integer.parseInt(args[3]);
+                new Application(new InetSocketAddress(parentHost, parentPort), port, resultsDirectory).launch();
+            }
+        } catch (IOException exception) {
+            logger.info("Disconnected from the network.\nBye.");
         }
     }
 
