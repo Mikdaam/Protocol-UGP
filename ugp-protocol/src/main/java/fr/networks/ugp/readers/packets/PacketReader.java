@@ -1,7 +1,6 @@
 package fr.networks.ugp.readers.packets;
 
 import fr.networks.ugp.packets.Packet;
-import fr.networks.ugp.packets.ReconnectOK;
 import fr.networks.ugp.readers.Reader;
 import fr.networks.ugp.readers.base.ByteReader;
 
