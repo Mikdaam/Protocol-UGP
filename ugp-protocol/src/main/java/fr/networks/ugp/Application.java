@@ -4,6 +4,7 @@ import fr.networks.ugp.data.AddressList;
 import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.*;
+import fr.networks.ugp.utils.CheckerDownloader;
 import fr.networks.ugp.utils.Client;
 import fr.networks.ugp.utils.CommandParser;
 import fr.networks.ugp.utils.Helpers;
@@ -446,12 +447,12 @@ public class Application {
             System.out.println("Beginning launch the task");
             var curTask = tasksQueue.poll();
             System.out.println("Start downloading...");
-            var checker = Client.checkerFromHTTP(curTask.url().toString(), curTask.className()).orElseThrow();
+            var checker = CheckerDownloader.checkerFromHTTP(curTask.url().toString(), curTask.className()).orElseThrow();
             System.out.println("Checker downloaded");
 
             var resultString = new StringJoiner("\n");
             System.out.println("Launch the task");
-            for (long i = curTask.range().from(); i < curTask.range().to(); i++) {
+            for (long i = curTask.range().from(); i <= curTask.range().to(); i++) {
                 try {
                     resultString.add(checker.check(i));
                 } catch (InterruptedException e) {
@@ -591,9 +592,9 @@ public class Application {
 
         // Send the rest to destinations
         for (var entry : taskCapacityTable.entrySet()) {
-            start = limit;
+            start = limit + 1;
             var capacity = entry.getValue();
-            limit = start + unit * capacity;
+            limit = Math.min(start + unit * capacity, task.range().to());
 
             var neighborTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
             System.out.println("Task sent to neighbor : " + neighborTask);
