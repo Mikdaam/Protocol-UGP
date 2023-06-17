@@ -5,7 +5,6 @@ import fr.networks.ugp.readers.packets.PacketReader;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -70,6 +69,7 @@ public class Context {
             case LeavingNotification leavingNotification -> application.handleLeavingNotification(this, leavingNotification);
             case NewParent newParent -> application.handleNewParent(this, newParent);
             case NotifyChild notifyChild -> application.handleNotifyChild(this, notifyChild);
+            case ChildNotified childNotified -> application.handleChildNotified(this, childNotified);
             case PartialResult partialResult -> application.handlePartialResult(this, partialResult);
             case Result result -> application.handleResult(this, result);
             case ResumeTask resumeTask -> application.handleResumeTask(this, resumeTask);

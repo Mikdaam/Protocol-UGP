@@ -34,6 +34,7 @@ public class Application {
     private final InetSocketAddress serverAddress;
     private final Selector selector;
     private SocketChannel sc;
+    private SocketChannel reconnectSc = null;
     private final Thread console;
     private final Path resultDirectory;
     private final Object lock = new Object();
@@ -48,13 +49,13 @@ public class Application {
     private final HashMap<InetSocketAddress, Context> reconnected = new HashMap<>();
     private final ArrayList<Thread> taskInProgress = new ArrayList<>();
     private Context parentContext;
+    private Context newParentContext;
     private Context disconnectingContext;
     private boolean isAvailable = true;
     private long localTaskId = 0;
 
     private final ArrayDeque<Context> waitingToDisconnect = new ArrayDeque<>(); // List of children wanting to disconnect
     private DisconnectionHandler disconnectionHandler;
-    private SocketChannel oldParent = null;
 
     public Application(InetSocketAddress serverAddress, int port, Path directory) throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
@@ -77,7 +78,7 @@ public class Application {
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
         if(serverAddress != null) {
-            connectToParent(serverAddress);
+            connectToParent(serverAddress, false);
         }
         disconnectionHandler = new DisconnectionHandler(parentContext, selector, capacityTable, taskTable); // TODO Change place this line
         console.start();
@@ -201,13 +202,15 @@ public class Application {
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
         System.out.println("Received leaving notification");
-        if(isAvailable) {
+        /*if(isAvailable) {
             isAvailable = false;
             System.out.println("Send NotifyChild to child");
             receiveFrom.queueMessage(new NotifyChild());
         } else {
             waitingToDisconnect.add(receiveFrom);
-        }
+        }*/
+        System.out.println("Send NotifyChild to child.\nStoring... the task emitter");
+        receiveFrom.queueMessage(new NotifyChild());
     }
 
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
@@ -216,8 +219,11 @@ public class Application {
         // cancelLaunchedTasks();
 
         if (!hasNeighborsExceptEmitter()) {
-            System.out.println("I am a child, so no children\nDo nothing but closing the context");
+            System.out.println("I am a child, so no children\nSend child notified");
+            receiveFrom.queueMessage(new ChildNotified());
+            System.out.println("Close the context connection");
             receiveFrom.silentlyClose();
+            System.out.println("Exiting...");
             System.exit(0);
             // stopTasksAndSendPartialResult();
         } else {
@@ -225,9 +231,16 @@ public class Application {
             System.out.println("I'm a parent, let's my children known");
             for (var child : children) {
                 var parentAddress = parentContext.getRemoteAddress();
-                child.queueMessage(new NewParent(parentAddress));
+                var par = new NewParent(parentAddress);
+                System.out.println("the new parent is : " + par);
+                child.queueMessage(par);
             }
         }
+    }
+
+    public void handleChildNotified(Context context, ChildNotified childNotified) {
+        System.out.println("Closing context from this side.");
+        context.silentlyClose();
     }
 
     public void handleCancelTask(Context receiveFrom, CancelTask cancelTask) {
@@ -262,13 +275,13 @@ public class Application {
     public void handleAllSent(Context receiveFrom, AllSent allSent) {
         receiveFrom.silentlyClose();
         isAvailable = true;
-        if(oldParent != null) {
+        if(reconnectSc != null) {
             try {
-                oldParent.close();
+                reconnectSc.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            oldParent = null;
+            reconnectSc = null;
         }
         if(!waitingToDisconnect.isEmpty()) {
             isAvailable = false;
@@ -277,42 +290,43 @@ public class Application {
     }
 
     public void handleNewParent(Context receiveFrom, NewParent newParent) {
-        System.out.println("Received a address : " + newParent);
-        System.out.println("Not available from now on");
-        isAvailable = false;
+        System.out.println("Received a new parent address : " + newParent);
+        /* System.out.println("Not available from now on");
+        isAvailable = false; */
         System.out.println("Then reconnect to parent!!");
 
-        oldParent = sc;
+        /*oldParent = sc;
         try {
             sc = SocketChannel.open();
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
+        }*/
 
         try {
-            connectToParent(newParent.address());
-            parentContext.queueMessage(new Reconnect());
+            connectToParent(newParent.address(), true);
+            newParentContext.doConnect();
+            var rec = new Reconnect();
+            System.out.println("Connected to new parent.\nSending a reconnect packet : " + rec);
+            newParentContext.queueMessage(rec);
+            System.out.println("Reconnect packet sent : " + rec);
             disconnectingContext = receiveFrom;
         } catch (IOException e) {
-            throw new AssertionError(e);
+            logger.info("There is an exception here : " + e.getMessage());
         }
-
-        // Close the current connection and open a new one to parent
-        // receiveFrom.silentlyClose();
     }
 
     public void handleNewParentOK(Context receiveFrom, NewParentOK newParentOK) {
-        // TODO: Stop all the current task
-        // TODO: get the partial result of task and send it to parent [PARTIAL_RESULT & ALL_SENT]
-
-        if (!disconnectionHandler.allReconnectionDone()) {
+        /*if (!disconnectionHandler.allReconnectionDone()) {
             return;
-        }
-
-        System.out.println("Closing this context");
-        receiveFrom.silentlyClose();
-        // Start to send Partial Result to Emitter
-        // stopTasksAndSendPartialResult();
+        }*/
+        // System.out.println("Closing this context");
+        System.out.println("Let's parent known");
+        parentContext.queueMessage(new ChildNotified());
+        /*System.out.println("Let's it disconnect");
+        receiveFrom.queueMessage(new AllowDeconnection());
+        System.out.println("Close it from here");
+        receiveFrom.silentlyClose();*/
+        parentContext.silentlyClose();
     }
 
     private void stopTasksAndSendPartialResult() {
@@ -380,22 +394,34 @@ public class Application {
     }
 
     public void handleAllowDeconnection(Context receiveFrom, AllowDeconnection allowDeconnection) {
-
+        System.out.println("I'am closing the connection know\n.Bye");
+        receiveFrom.silentlyClose();
     }
 
     public void handleReconnect(Context receiveFrom, Reconnect reconnect) {
+        System.out.println("Receive a reconnection from a child, ...");
+        System.out.println("The address is : " + receiveFrom.getRemoteAddress());
+        System.out.println("Storing the adress");
         reconnected.put(receiveFrom.getRemoteAddress(), receiveFrom);
+        // add emitter to tasks received [for routing]
         receiveFrom.queueMessage(new ReconnectOK());
+        System.out.println("Reply with reconect ok");
     }
 
     public void handleReconnectOK(Context receiveFrom, ReconnectOK reconnectOK) {
+        System.out.println("The reconnection is very well done.");
+        System.out.println("Update the task table motherfucker");
         for (var taskHandler : taskTable.values()) {
             if (taskHandler.emitter().equals(disconnectingContext)) {
                 taskHandler.updateEmitter(receiveFrom);
             }
         }
 
-        disconnectingContext.queueMessage(new NewParentOK());
+        System.out.println("Send to my parent that reconnection is good");
+        parentContext.queueMessage(new NewParentOK());
+        System.out.println("Close the connection behind me");
+        parentContext.silentlyClose();
+        // System.out.println("Still in communication anymore");
     }
 
 
@@ -632,9 +658,19 @@ public class Application {
 
     // =============[PACKETS]
 
-    private void connectToParent(InetSocketAddress address) throws IOException {
+    private void connectToParent(InetSocketAddress address, boolean isReconnection) throws IOException {
         if(parentContext != null) {
-            System.out.println(parentContext.getRemoteAddress().equals(address));
+            System.out.println("mme addr ? " + parentContext.getRemoteAddress().equals(address));
+        }
+
+        if (isReconnection) {
+            reconnectSc = SocketChannel.open();
+            reconnectSc.configureBlocking(false);
+            var key = reconnectSc.register(selector, SelectionKey.OP_CONNECT);
+            newParentContext = new Context(this, key);
+            key.attach(newParentContext);
+            reconnectSc.connect(address);
+            return;
         }
 
         sc.configureBlocking(false);

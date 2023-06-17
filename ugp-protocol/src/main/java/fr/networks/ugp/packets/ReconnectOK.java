@@ -10,6 +10,6 @@ public record ReconnectOK() implements Packet{
 
 	@Override
 	public byte type() {
-		return 16;
+		return 15;
 	}
 }

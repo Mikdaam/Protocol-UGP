@@ -12,6 +12,6 @@ public record CancelTask(TaskId id) implements Packet {
 
     @Override
     public byte type() {
-        return 9;
+        return 10;
     }
 }

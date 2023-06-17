@@ -10,6 +10,6 @@ public record AllowDeconnection() implements Packet {
 
   @Override
   public byte type() {
-    return 0;
+    return 18;
   }
 }
