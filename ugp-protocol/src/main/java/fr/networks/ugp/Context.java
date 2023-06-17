@@ -136,6 +136,10 @@ public class Context {
             silentlyClose();
             return;
         }
+
+        if (!key.isValid()) {
+            return;
+        }
         key.interestOps(newInterestOps);
     }
 

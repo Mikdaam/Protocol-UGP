@@ -5,7 +5,6 @@ import fr.networks.ugp.data.Range;
 import fr.networks.ugp.data.TaskId;
 import fr.networks.ugp.packets.*;
 import fr.networks.ugp.utils.CheckerDownloader;
-import fr.networks.ugp.utils.Client;
 import fr.networks.ugp.utils.CommandParser;
 import fr.networks.ugp.utils.Helpers;
 
@@ -34,7 +33,7 @@ public class Application {
     // For the client part
     private final InetSocketAddress serverAddress;
     private final Selector selector;
-    private SocketChannel sc;
+    private final SocketChannel sc;
     private SocketChannel reconnectSc = null;
     private final Thread console;
     private final Path resultDirectory;
@@ -56,7 +55,6 @@ public class Application {
     private long localTaskId = 0;
 
     private final ArrayDeque<Context> waitingToDisconnect = new ArrayDeque<>(); // List of children wanting to disconnect
-    private DisconnectionHandler disconnectionHandler;
 
     public Application(InetSocketAddress serverAddress, int port, Path directory) throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
@@ -81,7 +79,6 @@ public class Application {
         if(serverAddress != null) {
             connectToParent(serverAddress, false);
         }
-        disconnectionHandler = new DisconnectionHandler(parentContext, selector, capacityTable, taskTable); // TODO Change place this line
         console.start();
 
         while (!Thread.interrupted()) {
@@ -102,7 +99,7 @@ public class Application {
         Helpers.printSelectedKey(key); // for debug
         try {
             if (key.isValid() && key.isAcceptable()) {
-                doAccept(key);
+                doAccept();
             }
         } catch (IOException ioe) {
             // lambda call in select requires to tunnel IOException
@@ -151,7 +148,6 @@ public class Application {
     }
 
     public void handleTask(Context receivedFrom, Task task) {
-        System.out.println("Received task request");
         System.out.println("Received: " + task);
         var id = task.id();
 
@@ -215,25 +211,16 @@ public class Application {
     }
 
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
-        System.out.println("Received notify child");
         // disconnectionHandler.receivedNotifyChild();
         // cancelLaunchedTasks();
 
         if (!hasNeighborsExceptEmitter()) {
-            System.out.println("I am a child, so no children\nSend child notified");
             receiveFrom.queueMessage(new ChildNotified());
-            System.out.println("Close the context connection");
-            receiveFrom.silentlyClose();
-            System.out.println("Exiting...");
-            System.exit(0);
-            // stopTasksAndSendPartialResult();
         } else {
             // Then send "NEW_PARENT" to children
-            System.out.println("I'm a parent, let's my children known");
             for (var child : children) {
                 var parentAddress = parentContext.getRemoteAddress();
                 var par = new NewParent(parentAddress);
-                System.out.println("the new parent is : " + par);
                 child.queueMessage(par);
             }
         }
@@ -291,25 +278,14 @@ public class Application {
     }
 
     public void handleNewParent(Context receiveFrom, NewParent newParent) {
-        System.out.println("Received a new parent address : " + newParent);
         /* System.out.println("Not available from now on");
         isAvailable = false; */
-        System.out.println("Then reconnect to parent!!");
-
-        /*oldParent = sc;
-        try {
-            sc = SocketChannel.open();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }*/
 
         try {
             connectToParent(newParent.address(), true);
             newParentContext.doConnect();
             var rec = new Reconnect();
-            System.out.println("Connected to new parent.\nSending a reconnect packet : " + rec);
             newParentContext.queueMessage(rec);
-            System.out.println("Reconnect packet sent : " + rec);
             disconnectingContext = receiveFrom;
         } catch (IOException e) {
             logger.info("There is an exception here : " + e.getMessage());
@@ -317,17 +293,8 @@ public class Application {
     }
 
     public void handleNewParentOK(Context receiveFrom, NewParentOK newParentOK) {
-        /*if (!disconnectionHandler.allReconnectionDone()) {
-            return;
-        }*/
-        // System.out.println("Closing this context");
-        System.out.println("Let's parent known");
+        receiveFrom.silentlyClose();
         parentContext.queueMessage(new ChildNotified());
-        /*System.out.println("Let's it disconnect");
-        receiveFrom.queueMessage(new AllowDeconnection());
-        System.out.println("Close it from here");
-        receiveFrom.silentlyClose();*/
-        parentContext.silentlyClose();
     }
 
     private void stopTasksAndSendPartialResult() {
@@ -346,18 +313,6 @@ public class Application {
                 taskHandler.emitter().queueMessage(new PartialResult(taskId,new AddressList(destinations), task.range(), task.range().from(), new Result(taskId, "")));
             }
         });
-
-        /*System.out.println("A broadcast here [why ??]");
-        broadcast(new ResumeTask());
-        System.out.println("Closing all the context [why ??]");
-        selector.keys().forEach(selectionKey -> {
-            System.out.println("key : " + selectionKey);
-            if (selectionKey.channel() instanceof ServerSocketChannel) {
-                return;
-            }
-            System.out.println("Silently close here ??");
-            ((Context) selectionKey.attachment()).silentlyClose();
-        });*/
     }
 
 
@@ -400,29 +355,18 @@ public class Application {
     }
 
     public void handleReconnect(Context receiveFrom, Reconnect reconnect) {
-        System.out.println("Receive a reconnection from a child, ...");
-        System.out.println("The address is : " + receiveFrom.getRemoteAddress());
-        System.out.println("Storing the adress");
         reconnected.put(receiveFrom.getRemoteAddress(), receiveFrom);
         // add emitter to tasks received [for routing]
         receiveFrom.queueMessage(new ReconnectOK());
-        System.out.println("Reply with reconect ok");
     }
 
     public void handleReconnectOK(Context receiveFrom, ReconnectOK reconnectOK) {
-        System.out.println("The reconnection is very well done.");
-        System.out.println("Update the task table motherfucker");
         for (var taskHandler : taskTable.values()) {
             if (taskHandler.emitter().equals(disconnectingContext)) {
                 taskHandler.updateEmitter(receiveFrom);
             }
         }
-
-        System.out.println("Send to my parent that reconnection is good");
         parentContext.queueMessage(new NewParentOK());
-        System.out.println("Close the connection behind me");
-        parentContext.silentlyClose();
-        // System.out.println("Still in communication anymore");
     }
 
 
@@ -502,10 +446,12 @@ public class Application {
                     capacityTable.put(taskId, new CapacityManager(null, neighborsNumber()));
                     broadcast(new CapacityRequest(taskId));
                 }
-                case CommandParser.Disconnect disconnect -> {
+                case CommandParser.Disconnect ignored -> {
                     if(isAvailable) {
                         isAvailable = false;
-                        disconnectionHandler.startingDisconnection();
+                        if(parentContext == null) {
+                            throw new IllegalStateException("Root can't disconnect");
+                        }
                         cancelLaunchedTasks(); // [1]
                         stopTasksAndSendPartialResult(); // [2]
                         parentContext.queueMessage(new LeavingNotification()); // [3]
@@ -585,7 +531,6 @@ public class Application {
         long limit = start + unit;
 
         var subTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
-        System.out.println("Add task[our part task] : " + subTask);
         // TODO: Launch our task
         tasksQueue.add(subTask);
         taskInProgress.add(Thread.ofPlatform().start(this::launchTaskInBackground));
@@ -597,7 +542,6 @@ public class Application {
             limit = Math.min(start + unit * capacity, task.range().to());
 
             var neighborTask = new Task(task.id(), task.url(), task.className(), new Range(start, limit));
-            System.out.println("Task sent to neighbor : " + neighborTask);
             var destination = entry.getKey();
             destination.queueMessage(neighborTask);
         }
@@ -641,6 +585,7 @@ public class Application {
         });
     }
 
+    // TODO: Refactor and update to new java's version
     private void writeResultToFile(Result result) {
         var taskId = result.id();
         var taskLaunched = launchedTasks.get(taskId);
@@ -698,7 +643,7 @@ public class Application {
         return neighborsNumber() - 1 >= 1;
     }
 
-    private void doAccept(SelectionKey key) throws IOException {
+    private void doAccept() throws IOException {
         var client = serverSocketChannel.accept();
         if (client == null) {
             logger.warning("The selector give a bad hint");
@@ -741,13 +686,11 @@ public class Application {
         }
 
         try {
-            if(args.length == 2) {
-                int port = Integer.parseInt(args[0]);
-                var resultsDirectory = Paths.get(args[1]);
+            int port = Integer.parseInt(args[0]);
+            var resultsDirectory = Paths.get(args[1]);
+            if (args.length == 2) {
                 new Application(null, port, resultsDirectory).launch();
             } else {
-                int port = Integer.parseInt(args[0]);
-                var resultsDirectory = Paths.get(args[1]);
                 var parentHost = args[2];
                 int parentPort = Integer.parseInt(args[3]);
                 new Application(new InetSocketAddress(parentHost, parentPort), port, resultsDirectory).launch();
