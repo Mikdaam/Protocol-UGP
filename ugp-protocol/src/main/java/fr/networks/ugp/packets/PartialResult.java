@@ -41,6 +41,6 @@ public record PartialResult(TaskId id, AddressList destination, Range range, Lon
 
     @Override
     public byte type() {
-        return 10;
+        return 11;
     }
 }

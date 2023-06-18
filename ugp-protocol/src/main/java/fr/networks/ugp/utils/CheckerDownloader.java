@@ -78,6 +78,7 @@ public class CheckerDownloader {
 			key.interestOps(SelectionKey.OP_WRITE);
 		}
 
+		// application/java-archive
 		public ByteBuffer getResource(String host, String path) throws IOException {
 			this.host = host;
 			this.path = path;
@@ -147,10 +148,10 @@ public class CheckerDownloader {
 
 				if (jarIndex != -1) {
 					String httpUrl = jarUrl.substring("jar:".length(), jarIndex + ".jar".length());
-					String jarPath = jarUrl.substring(jarIndex + ".jar!".length());
 
 					var client = new NonBlockingTCPClient();
-					var bytes = client.getResource(new URL(httpUrl).getHost(), jarPath);
+					var cleanUrl = new URL(httpUrl);
+					var bytes = client.getResource(cleanUrl.getHost(), cleanUrl.getPath());
 					client.close();
 
 					return checkerFromJarBytes(bytes, className);

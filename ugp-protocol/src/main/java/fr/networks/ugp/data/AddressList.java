@@ -9,7 +9,6 @@ public record AddressList(List<InetSocketAddress> address) {
 	private static final Map<Integer, Integer> bytesToVersion = Map.of(4, 4, 16, 6);
 
 	public ByteBuffer encode() {
-
 		var size = Integer.BYTES;
 		for (var element : address) {
 			size += Byte.BYTES + element.getAddress().getAddress().length + Integer.BYTES;

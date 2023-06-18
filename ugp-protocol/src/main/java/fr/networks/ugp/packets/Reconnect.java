@@ -11,6 +11,6 @@ public record Reconnect() implements Packet {
 
 	@Override
 	public byte type() {
-		return 12;
+		return 14;
 	}
 }

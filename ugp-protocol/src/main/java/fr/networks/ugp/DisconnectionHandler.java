@@ -30,7 +30,7 @@ public class DisconnectionHandler {
     if(parent == null) {
       throw new IllegalStateException("Root can't disconnect");
     }
-    parent.queueMessage(new LeavingNotification());
+    // parent.queueMessage(new LeavingNotification());
     //state = State.WAITING_FOR_NOTIFY;
   }
 
