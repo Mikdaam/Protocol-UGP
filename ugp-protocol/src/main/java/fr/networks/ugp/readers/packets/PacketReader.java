@@ -37,9 +37,6 @@ public class PacketReader implements Reader<Packet> {
         readers.put(13, new NewParentOKReader());
         readers.put(14, new ReconnectReader());
         readers.put(15, new ReconnectOKReader());
-        readers.put(16, new ResumeTaskReader());
-        readers.put(17, new AllSentReader());
-        readers.put(18, new AllowDeconnectionReader());
     }
 
     @Override

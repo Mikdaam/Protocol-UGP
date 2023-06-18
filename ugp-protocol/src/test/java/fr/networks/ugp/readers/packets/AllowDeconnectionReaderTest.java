@@ -1,6 +1,5 @@
 package fr.networks.ugp.readers.packets;
 
-import fr.networks.ugp.packets.AllowDeconnection;
 import fr.networks.ugp.readers.Reader;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;

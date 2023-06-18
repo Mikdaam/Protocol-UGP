@@ -3,8 +3,6 @@ package fr.networks.ugp.packets;
 import java.nio.ByteBuffer;
 
 public sealed interface Packet permits
-        AllSent,
-        AllowDeconnection,
         CancelTask,
         Capacity,
         CapacityRequest,
@@ -16,7 +14,6 @@ public sealed interface Packet permits
         Reconnect,
         ReconnectOK,
         Result,
-        ResumeTask,
         Task,
         TaskAccepted,
         TaskRefused,
