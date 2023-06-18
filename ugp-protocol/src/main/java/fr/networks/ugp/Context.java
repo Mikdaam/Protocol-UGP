@@ -5,7 +5,6 @@ import fr.networks.ugp.readers.packets.PacketReader;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
@@ -62,17 +61,15 @@ public class Context {
 
     private void processPacket(Packet packet) {
         switch (packet) {
-            case AllSent allSent -> application.handleAllSent(this, allSent);
-            case AllowDeconnection allowDeconnection -> application.handleAllowDeconnection(this, allowDeconnection);
             case CancelTask cancelTask -> application.handleCancelTask(this, cancelTask);
             case Capacity capacity -> application.handleCapacity(this, capacity);
             case CapacityRequest capacityRequest -> application.handleCapacityRequest(this, capacityRequest);
             case LeavingNotification leavingNotification -> application.handleLeavingNotification(this, leavingNotification);
             case NewParent newParent -> application.handleNewParent(this, newParent);
             case NotifyChild notifyChild -> application.handleNotifyChild(this, notifyChild);
+            case ChildNotified childNotified -> application.handleChildNotified(this, childNotified);
             case PartialResult partialResult -> application.handlePartialResult(this, partialResult);
             case Result result -> application.handleResult(this, result);
-            case ResumeTask resumeTask -> application.handleResumeTask(this, resumeTask);
             case Reconnect reconnect -> application.handleReconnect(this, reconnect);
             case ReconnectOK reconnectOK -> application.handleReconnectOK(this, reconnectOK);
             case Task task -> application.handleTask(this, task);
@@ -136,6 +133,10 @@ public class Context {
             silentlyClose();
             return;
         }
+
+        if (!key.isValid()) {
+            return;
+        }
         key.interestOps(newInterestOps);
     }
 
@@ -144,6 +145,7 @@ public class Context {
             sc.close();
         } catch (IOException e) {
             // ignore exception
+            logger.info("Disconnecting .... ?");
         }
     }
 

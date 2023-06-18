@@ -1,12 +1,12 @@
 package fr.networks.ugp.readers.packets;
 
-import fr.networks.ugp.packets.LeavingNotification;
+import fr.networks.ugp.packets.ChildNotified;
 import fr.networks.ugp.packets.Packet;
 import fr.networks.ugp.readers.Reader;
 
 import java.nio.ByteBuffer;
 
-public class LeavingNotificationReader implements Reader<Packet> {
+public record ChildNotifiedReader() implements Reader<Packet> {
 	@Override
 	public ProcessStatus process(ByteBuffer bb) {
 		return ProcessStatus.DONE;
@@ -14,7 +14,7 @@ public class LeavingNotificationReader implements Reader<Packet> {
 
 	@Override
 	public Packet get() {
-		return new LeavingNotification();
+		return new ChildNotified();
 	}
 
 	@Override

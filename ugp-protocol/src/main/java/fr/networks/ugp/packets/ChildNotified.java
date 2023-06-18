@@ -2,7 +2,7 @@ package fr.networks.ugp.packets;
 
 import java.nio.ByteBuffer;
 
-public record NewParentOK() implements Packet{
+public record ChildNotified() implements Packet {
 	@Override
 	public ByteBuffer encode() {
 		return ByteBuffer.allocate(0);
@@ -10,6 +10,6 @@ public record NewParentOK() implements Packet{
 
 	@Override
 	public byte type() {
-		return 13;
+		return 9;
 	}
 }

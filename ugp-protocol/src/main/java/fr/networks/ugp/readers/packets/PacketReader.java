@@ -30,13 +30,13 @@ public class PacketReader implements Reader<Packet> {
         readers.put(6, new ResultReader());
         readers.put(7, new LeavingNotificationReader());
         readers.put(8, new NotifyChildReader());
-        readers.put(9, new CancelTaskReader());
-        readers.put(10, new PartialResultReader());
-        readers.put(11, new NewParentReader());
-        readers.put(12, new TaskReader());
-        readers.put(13, new ResumeTaskReader());
-        readers.put(14, new AllSentReader());
-        readers.put(15, new AllowDeconnectionReader());
+        readers.put(9, new ChildNotifiedReader());
+        readers.put(10, new CancelTaskReader());
+        readers.put(11, new PartialResultReader());
+        readers.put(12, new NewParentReader());
+        readers.put(13, new NewParentOKReader());
+        readers.put(14, new ReconnectReader());
+        readers.put(15, new ReconnectOKReader());
     }
 
     @Override

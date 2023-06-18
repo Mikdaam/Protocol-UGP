@@ -19,7 +19,7 @@ public class CapacityManager {
 
 	/**
 	 *
-	 * @param capacity
+	 * @param capacity capacity
 	 * @param receivedFrom the context from wich the capacity was received
 	 * @return the sum of the capacity table if there is no emitter to send the capacity, -1 else
 	 */
