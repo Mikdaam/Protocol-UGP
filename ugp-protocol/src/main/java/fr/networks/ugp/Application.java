@@ -34,7 +34,7 @@ public class Application {
     private final InetSocketAddress serverAddress;
     private final Selector selector;
     private final SocketChannel sc;
-    private SocketChannel reconnectSc = null;
+    private final SocketChannel reconnectSocketChannel;
     private final Thread console;
     private final Path resultDirectory;
     private final Object lock = new Object();
@@ -64,9 +64,11 @@ public class Application {
 
         if (serverAddress != null) {
             sc = SocketChannel.open();
+            reconnectSocketChannel = SocketChannel.open();
             this.serverAddress = serverAddress;
         } else {
             sc = null;
+            reconnectSocketChannel = null;
             this.serverAddress = null;
         }
         this.console = Thread.ofPlatform().unstarted(this::consoleRun);
@@ -199,21 +201,11 @@ public class Application {
 
     public void handleLeavingNotification(Context receiveFrom, LeavingNotification leavingNotification) {
         System.out.println("Received leaving notification");
-        /*if(isAvailable) {
-            isAvailable = false;
-            System.out.println("Send NotifyChild to child");
-            receiveFrom.queueMessage(new NotifyChild());
-        } else {
-            waitingToDisconnect.add(receiveFrom);
-        }*/
         System.out.println("Send NotifyChild to child.\nStoring... the task emitter");
         receiveFrom.queueMessage(new NotifyChild());
     }
 
     public void handleNotifyChild(Context receiveFrom, NotifyChild notifyChild) {
-        // disconnectionHandler.receivedNotifyChild();
-        // cancelLaunchedTasks();
-
         if (!hasNeighborsExceptEmitter()) {
             receiveFrom.queueMessage(new ChildNotified());
         } else {
@@ -260,27 +252,7 @@ public class Application {
         taskInProgress.add(Thread.ofPlatform().start(this::launchTaskInBackground));
     }
 
-    public void handleAllSent(Context receiveFrom, AllSent allSent) {
-        receiveFrom.silentlyClose();
-        isAvailable = true;
-        if(reconnectSc != null) {
-            try {
-                reconnectSc.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            reconnectSc = null;
-        }
-        if(!waitingToDisconnect.isEmpty()) {
-            isAvailable = false;
-            waitingToDisconnect.pollFirst().queueMessage(new NotifyChild());
-        }
-    }
-
     public void handleNewParent(Context receiveFrom, NewParent newParent) {
-        /* System.out.println("Not available from now on");
-        isAvailable = false; */
-
         try {
             connectToParent(newParent.address(), true);
             newParentContext.doConnect();
@@ -294,6 +266,7 @@ public class Application {
 
     public void handleNewParentOK(Context receiveFrom, NewParentOK newParentOK) {
         receiveFrom.silentlyClose();
+        // wait for all children before inform the parent.
         parentContext.queueMessage(new ChildNotified());
     }
 
@@ -316,7 +289,7 @@ public class Application {
     }
 
 
-    public void handleResumeTask(Context receiveFrom, ResumeTask resumeTask) {
+    /*public void handleResumeTask(Context receiveFrom, ResumeTask resumeTask) {
         System.out.println("Receive resume Task");
         isAvailable = true;
         taskTable.forEach((taskId, taskHandler) -> {
@@ -347,25 +320,25 @@ public class Application {
             isAvailable = false;
             waitingToDisconnect.pollFirst().queueMessage(new NotifyChild());
         }
-    }
-
-    public void handleAllowDeconnection(Context receiveFrom, AllowDeconnection allowDeconnection) {
-        System.out.println("I'am closing the connection know\n.Bye");
-        receiveFrom.silentlyClose();
-    }
+    }*/
 
     public void handleReconnect(Context receiveFrom, Reconnect reconnect) {
+        System.out.println("Reconnected Adress: " + receiveFrom.getRemoteAddress());
         reconnected.put(receiveFrom.getRemoteAddress(), receiveFrom);
         // add emitter to tasks received [for routing]
         receiveFrom.queueMessage(new ReconnectOK());
     }
 
     public void handleReconnectOK(Context receiveFrom, ReconnectOK reconnectOK) {
+        System.out.println("Task table before : ");
+        System.out.println(taskTable);
         for (var taskHandler : taskTable.values()) {
             if (taskHandler.emitter().equals(disconnectingContext)) {
                 taskHandler.updateEmitter(receiveFrom);
             }
         }
+        System.out.println("Task table after : ");
+        System.out.println(taskTable);
         parentContext.queueMessage(new NewParentOK());
     }
 
@@ -585,18 +558,20 @@ public class Application {
         });
     }
 
-    // TODO: Refactor and update to new java's version
+
     private void writeResultToFile(Result result) {
         var taskId = result.id();
         var taskLaunched = launchedTasks.get(taskId);
         try {
-            var file = new File(taskLaunched.file().toUri());
-            var dir = file.getParentFile();
-            if(!dir.exists()) {
-                dir.mkdirs();
+            var file = taskLaunched.file();
+            var dir = file.getParent();
+            if (!Files.exists(dir)) {
+                Files.createDirectories(dir);
             }
-            file.createNewFile();
-            Files.write(taskLaunched.file(), Collections.singleton(result.result()), StandardOpenOption.APPEND);
+            if (!Files.exists(file)) {
+                Files.createFile(file);
+            }
+            Files.write(file, Collections.singleton(result.result()), StandardOpenOption.APPEND);
         } catch (IOException e) {
             logger.severe(e.getCause().toString());
         }
@@ -605,17 +580,12 @@ public class Application {
     // =============[PACKETS]
 
     private void connectToParent(InetSocketAddress address, boolean isReconnection) throws IOException {
-        if(parentContext != null) {
-            System.out.println("mme addr ? " + parentContext.getRemoteAddress().equals(address));
-        }
-
         if (isReconnection) {
-            reconnectSc = SocketChannel.open();
-            reconnectSc.configureBlocking(false);
-            var key = reconnectSc.register(selector, SelectionKey.OP_CONNECT);
+            reconnectSocketChannel.configureBlocking(false);
+            var key = reconnectSocketChannel.register(selector, SelectionKey.OP_CONNECT);
             newParentContext = new Context(this, key);
             key.attach(newParentContext);
-            reconnectSc.connect(address);
+            reconnectSocketChannel.connect(address);
             return;
         }
 
@@ -701,11 +671,11 @@ public class Application {
     }
 
     private static void usage() {
-        System.out.println("Usage: Application port [results_directory] [parent_host] [parent_port]");
-        System.out.println("  port: The port number for listening");
-        System.out.println("  results_directory: The directory path for storing result files");
-        System.out.println("  parent_host: The host address of the parent application (optional)");
-        System.out.println("  parent_port: The port number of the parent application (optional)");
+        System.out.println("Usage: Application [port] [results_directory] [parent_host] [parent_port]");
+        System.out.println("\tport: The port number for listening");
+        System.out.println("\tresults_directory: The directory path for storing result files");
+        System.out.println("\tparent_host: The host address of the parent application (optional)");
+        System.out.println("\tparent_port: The port number of the parent application (optional)");
     }
 }
 
