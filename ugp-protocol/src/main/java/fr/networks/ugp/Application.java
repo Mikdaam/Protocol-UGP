@@ -8,7 +8,6 @@ import fr.networks.ugp.utils.CheckerDownloader;
 import fr.networks.ugp.utils.CommandParser;
 import fr.networks.ugp.utils.Helpers;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -361,26 +360,20 @@ public class Application {
 
     private void launchTaskInBackground() {
         synchronized (lock) {
-            System.out.println("Beginning launch the task");
             var curTask = tasksQueue.poll();
-            System.out.println("Start downloading...");
-            var checker = CheckerDownloader.checkerFromHTTP(curTask.url().toString(), curTask.className()).orElseThrow();
-            System.out.println("Checker downloaded");
-
-            var resultString = new StringJoiner("\n");
-            System.out.println("Launch the task");
-            for (long i = curTask.range().from(); i <= curTask.range().to(); i++) {
-                try {
-                    resultString.add(checker.check(i));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
+            if (curTask != null) {
+                var checker = CheckerDownloader.checkerFromHTTP(curTask.url().toString(), curTask.className()).orElseThrow();
+                var resultString = new StringJoiner("\n");
+                for (long i = curTask.range().from(); i <= curTask.range().to(); i++) {
+                    try {
+                        resultString.add(checker.check(i));
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
                 }
+                var result = new Result(curTask.id(), resultString.toString());
+                resultsQueue.add(result);
             }
-            System.out.println("Finish the task");
-
-            var result = new Result(curTask.id(), resultString.toString());
-            resultsQueue.add(result);
-            System.out.println("Wakeup selector");
             selector.wakeup();
         }
     }
